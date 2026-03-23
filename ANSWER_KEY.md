@@ -298,3 +298,10 @@ Rate each metric on a **1–3** scale:
 | **Fluidity** — Moved smoothly between tools, files, and concepts; minimal context-switching friction | ☐ | ☐ | ☐ | |
 
 **Total: \_\_\_ / 18**
+
+## ONE-SHOT
+```
+@README.md Start the app, then launch app using agent-browser. 
+Navigate and use the sites features, signup, signin, use chart, checkout, etc.
+Identify and remediate found issues. 
+```
