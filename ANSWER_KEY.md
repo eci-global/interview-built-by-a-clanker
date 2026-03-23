@@ -294,7 +294,7 @@ Rate each metric on a **1–3** scale:
 | **Executive Functions** — Prioritized effectively, managed time well, worked systematically | ☐ | ☐ | ☐ | |
 | **Reasoning / Troubleshooting** — Identified root causes accurately, logical debugging approach | ☐ | ☐ | ☐ | |
 | **Exploration / Curiosity** — Proactively explored the codebase, asked good questions, dug deeper | ☐ | ☐ | ☐ | |
-| **Technical Abilities** — Demonstrated strong command of the tech stack (TS, React, Fastify, TanStack) | ☐ | ☐ | ☐ | |
+| **Technical Abilities** — Demonstrated strong command of the tech stack | ☐ | ☐ | ☐ | |
 | **Fluidity** — Moved smoothly between tools, files, and concepts; minimal context-switching friction | ☐ | ☐ | ☐ | |
 
 **Total: \_\_\_ / 18**
