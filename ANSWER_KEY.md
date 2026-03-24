@@ -296,6 +296,7 @@ Rate each metric on a **1–3** scale:
 | **Exploration / Curiosity** — Proactively explored the codebase, asked good questions, dug deeper | ☐ | ☐ | ☐ | |
 | **Technical Abilities** — Demonstrated strong command of the tech stack | ☐ | ☐ | ☐ | |
 | **Fluidity** — Moved smoothly between tools, files, and concepts; minimal context-switching friction | ☐ | ☐ | ☐ | |
+| **Symbiosis** — How syncronized with the ai are they | ☐ | ☐ | ☐ | |
 
 **Total: \_\_\_ / 18**
 
