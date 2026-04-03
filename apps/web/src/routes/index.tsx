@@ -40,8 +40,8 @@ function BrowsePage() {
   if (search.sort) queryString.set("sort", search.sort);
 
   const { data: personas = [], isLoading } = useQuery({
-    queryKey: ["personas"],
-    queryFn: () => {
+    queryKey: ["personas", queryString.toString()],
+     queryFn: () => {
       const qs = queryString.toString();
       return api.get<Persona[]>(`/personas${qs ? `?${qs}` : ""}`);
     },

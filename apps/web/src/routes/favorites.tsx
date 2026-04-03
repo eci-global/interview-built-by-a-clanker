@@ -15,7 +15,10 @@ function FavoritesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["favorites"],
-    queryFn: () => api.get<{ favorites: Persona[] }>("/favorites"),
+    queryFn: async () => {
+      const res = await api.get<{ favorites: Persona[] }>("/favorites");
+      return res.favorites;
+    },
     enabled: !!user,
   });
 
@@ -56,7 +59,7 @@ function FavoritesPage() {
     );
   }
 
-  const favorites = data?.favorites ?? [];
+  const favorites = data ?? [];
 
   return (
     <div>

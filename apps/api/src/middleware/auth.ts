@@ -6,14 +6,21 @@ export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  if (!ENFORCE_AUTH) {
+  const hasBearer =
+    typeof request.headers.authorization === "string" &&
+    request.headers.authorization.startsWith("Bearer ");
+
+  if (hasBearer) {
+    try {
+      await request.jwtVerify();
+    } catch {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
     return;
   }
 
-  try {
-    await request.jwtVerify();
-  } catch {
-    reply.status(401).send({ error: "Unauthorized" });
+  if (ENFORCE_AUTH) {
+    return reply.status(401).send({ error: "Unauthorized" });
   }
 }
 
