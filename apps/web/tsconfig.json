@@ -5,7 +5,6 @@
     "outDir": "dist",
     "rootDir": "src",
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
       "~/*": ["./src/*"]
     }

@@ -1,12 +1,12 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import type { FastifyRequest, FastifyReply } from "fastify";
 
-const ENFORCE_AUTH = process.env.ENFORCE_AUTH === "true";
+const SKIP_AUTH = process.env.SKIP_AUTH === "true";
 
 export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  if (!ENFORCE_AUTH) {
+  if (SKIP_AUTH) {
     return;
   }
 
@@ -15,8 +15,4 @@ export async function authenticate(
   } catch {
     reply.status(401).send({ error: "Unauthorized" });
   }
-}
-
-export function registerAuthHook(app: FastifyInstance) {
-  app.decorate("authenticate", authenticate);
 }
