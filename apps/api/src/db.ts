@@ -1,4 +1,4 @@
-import type { Persona, User, CartItem, Order } from "@acme/shared";
+import type { Persona, User, Order } from "@acme/shared";
 
 interface StoredUser extends User {
   passwordHash: string;
@@ -362,7 +362,7 @@ export const db = {
       }
 
       if (filters.minPrice !== undefined) {
-        results = results.filter((p) => p.price <= filters.minPrice!);
+        results = results.filter((p) => p.price >= filters.minPrice!);
       }
 
       if (filters.maxPrice !== undefined) {
