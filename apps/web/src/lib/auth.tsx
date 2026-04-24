@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { User, AuthResponse } from "@acme/shared";
 import { api, ApiError } from "./api";
+import { queryClient } from "./queryClient";
 
 interface AuthContextType {
   user: User | null;
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
+    queryClient.clear();
   }, []);
 
   return (
