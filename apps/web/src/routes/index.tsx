@@ -5,8 +5,9 @@ import type { Persona } from "@acme/shared";
 import { PersonaCard } from "~/components/PersonaCard";
 import { SearchBar } from "~/components/SearchBar";
 import { FilterPanel } from "~/components/FilterPanel";
+import { buildPersonaQueryString, personaQueryKey } from "~/lib/personaSearch";
 
-interface SearchParams {
+export interface SearchParams {
   q?: string;
   specialty?: string;
   tier?: string;
@@ -31,18 +32,11 @@ function BrowsePage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
-  const queryString = new URLSearchParams();
-  if (search.q) queryString.set("q", search.q);
-  if (search.specialty) queryString.set("specialty", search.specialty);
-  if (search.tier) queryString.set("tier", search.tier);
-  if (search.minPrice) queryString.set("minPrice", String(search.minPrice));
-  if (search.maxPrice) queryString.set("maxPrice", String(search.maxPrice));
-  if (search.sort) queryString.set("sort", search.sort);
+  const qs = buildPersonaQueryString(search);
 
   const { data: personas = [], isLoading } = useQuery({
-    queryKey: ["personas"],
+    queryKey: personaQueryKey(qs),
     queryFn: () => {
-      const qs = queryString.toString();
       return api.get<Persona[]>(`/personas${qs ? `?${qs}` : ""}`);
     },
   });

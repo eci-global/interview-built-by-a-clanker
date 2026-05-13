@@ -25,7 +25,10 @@ export async function checkoutRoutes(app: FastifyInstance) {
 
     for (const entry of cartEntries) {
       const persona = personasStore.get(entry.personaId);
-      if (!persona) continue;
+      if (!persona) {
+        db.cart.remove(entry.id);
+        continue;
+      }
 
       items.push({
         id: entry.id,
@@ -35,6 +38,10 @@ export async function checkoutRoutes(app: FastifyInstance) {
       });
 
       total += persona.price * entry.quantity;
+    }
+
+    if (items.length === 0) {
+      return reply.status(409).send({ error: "Cart contains unavailable personas" });
     }
 
     const order: Order = {
@@ -48,6 +55,7 @@ export async function checkoutRoutes(app: FastifyInstance) {
     };
 
     db.orders.create(order);
+    db.cart.clearForUser(userId);
 
     return reply.status(201).send(order);
   });

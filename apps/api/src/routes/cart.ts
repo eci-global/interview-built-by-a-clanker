@@ -10,7 +10,10 @@ function enrichCartItems(userId: string): Cart {
 
   for (const entry of entries) {
     const persona = db.personas.getById(entry.personaId);
-    if (!persona) continue;
+    if (!persona) {
+      db.cart.remove(entry.id);
+      continue;
+    }
 
     items.push({
       id: entry.id,
@@ -75,7 +78,7 @@ export async function cartRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id: userId } = request.user as { id: string };
       const item = db.cart.getById(request.params.itemId);
-      if (!item) {
+      if (!item || item.userId !== userId) {
         return reply.status(404).send({ error: "Cart item not found" });
       }
 

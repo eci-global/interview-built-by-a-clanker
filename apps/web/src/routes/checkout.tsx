@@ -1,10 +1,11 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
 import type { Cart, Order } from "@acme/shared";
+import { cartQueryKey } from "~/lib/cartKeys";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -12,13 +13,12 @@ export const Route = createFileRoute("/checkout")({
 
 function CheckoutPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
 
   const { data: cart, isLoading } = useQuery({
-    queryKey: ["cart"],
+    queryKey: cartQueryKey,
     queryFn: () => api.get<Cart>("/cart"),
     enabled: !!user,
   });
@@ -27,7 +27,7 @@ function CheckoutPage() {
     mutationFn: () => api.post<Order>("/checkout", { name, email }),
     onSuccess: (data) => {
       setOrder(data);
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: cartQueryKey });
     },
   });
 

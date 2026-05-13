@@ -5,6 +5,8 @@ import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
 import { StarRating } from "~/components/StarRating";
 import type { Persona, Cart } from "@acme/shared";
+import { cartQueryKey } from "~/lib/cartKeys";
+import { favoriteToggleRequest } from "~/lib/favorites";
 
 export const Route = createFileRoute("/personas/$personaId")({
   component: PersonaDetailPage,
@@ -19,12 +21,13 @@ function PersonaDetailPage() {
     queryFn: () => api.get<Persona>(`/personas/${personaId}`),
   });
 
-  const { data: favorites = [] } = useQuery({
-    queryKey: ["favorites"],
+  const { data: favorites = [], isLoading: isLoadingFavorites } = useQuery({
+    queryKey: ["favorite-ids"],
     queryFn: async () => {
       const res = await api.get<{ favorites: Persona[] }>("/favorites");
       return res.favorites.map((p) => p.id);
     },
+    enabled: !!user,
   });
 
   const isFavorited = favorites.includes(personaId);
@@ -33,19 +36,46 @@ function PersonaDetailPage() {
     mutationFn: () =>
       api.post<Cart>("/cart", { personaId, quantity: 1 }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: cartQueryKey });
     },
   });
 
   const toggleFavorite = useMutation({
-    mutationFn: () =>
-      !isFavorited
-        ? api.delete(`/favorites/${personaId}`)
-        : api.post("/favorites", { personaId }),
+    mutationFn: (currentlyFavorited: boolean) => {
+      const request = favoriteToggleRequest(currentlyFavorited, personaId);
+      return request.method === "DELETE"
+        ? api.delete(request.path)
+        : api.post(request.path, request.body);
+    },
+    onMutate: async (currentlyFavorited) => {
+      await queryClient.cancelQueries({ queryKey: ["favorite-ids"] });
+      const previousFavoriteIds =
+        queryClient.getQueryData<string[]>(["favorite-ids"]) ?? [];
+
+      queryClient.setQueryData<string[]>(["favorite-ids"], (current = []) =>
+        currentlyFavorited
+          ? current.filter((id) => id !== personaId)
+          : [...new Set([...current, personaId])],
+      );
+
+      return { previousFavoriteIds };
+    },
+    onError: (_error, _currentlyFavorited, context) => {
+      queryClient.setQueryData(
+        ["favorite-ids"],
+        context?.previousFavoriteIds ?? [],
+      );
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
     },
   });
+
+  function handleToggleFavorite() {
+    const currentFavoriteIds =
+      queryClient.getQueryData<string[]>(["favorite-ids"]) ?? favorites;
+    toggleFavorite.mutate(currentFavoriteIds.includes(personaId));
+  }
 
   if (isLoading) {
     return (
@@ -172,8 +202,11 @@ function PersonaDetailPage() {
                   {addToCart.isPending ? "Adding..." : "Add to Cart"}
                 </button>
                 <button
-                  onClick={() => toggleFavorite.mutate()}
-                  disabled={toggleFavorite.isPending}
+                  onClick={handleToggleFavorite}
+                  disabled={toggleFavorite.isPending || isLoadingFavorites}
+                  aria-label={
+                    isFavorited ? "Remove from favorites" : "Add to favorites"
+                  }
                   className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   <svg

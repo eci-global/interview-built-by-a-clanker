@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { Persona } from "@acme/shared";
 import { StarRating } from "./StarRating";
+import { formatMonthlyPrice } from "~/lib/format";
 
 const tierColors = {
   Starter: "bg-green-100 text-green-800",
@@ -60,7 +61,7 @@ export function PersonaCard({ persona }: { persona: Persona }) {
           </span>
         </div>
         <p className="text-lg font-bold text-gray-900">
-          ${(persona.price * 100).toFixed(2)}
+          {formatMonthlyPrice(persona.price)}
           <span className="text-xs font-normal text-gray-500">/mo</span>
         </p>
       </div>

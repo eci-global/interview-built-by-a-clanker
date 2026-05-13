@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (err instanceof ApiError && err.status === 401) {
           localStorage.removeItem("auth_token");
           setToken(null);
+          setUser(null);
         }
       })
       .finally(() => setIsLoading(false));
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
   }, []);

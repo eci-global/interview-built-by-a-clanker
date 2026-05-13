@@ -1,19 +1,15 @@
 import type { FastifyInstance } from "fastify";
+import { personaFilterSchema } from "@acme/shared";
 import { db } from "../db.js";
 
 export async function personaRoutes(app: FastifyInstance) {
-  app.get("/personas", async (request) => {
-    const query = request.query as Record<string, string | undefined>;
-    const filters = {
-      q: query.q,
-      specialty: query.specialty,
-      tier: query.tier,
-      minPrice: query.minPrice ? Number(query.minPrice) : undefined,
-      maxPrice: query.maxPrice ? Number(query.maxPrice) : undefined,
-      sort: query.sort,
-    };
+  app.get("/personas", async (request, reply) => {
+    const result = personaFilterSchema.safeParse(request.query);
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.flatten() });
+    }
 
-    return db.personas.search(filters);
+    return db.personas.search(result.data);
   });
 
   app.get<{ Params: { id: string } }>("/personas/:id", async (request, reply) => {

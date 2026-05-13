@@ -1,6 +1,8 @@
-# Agentic Personas Storefront — Debugging Assessment
+# Agentic Personas Storefront - Debugging Assessment
 
-Welcome! This is a monorepo storefront application for browsing and purchasing AI-powered "Agentic Personas." The app was recently working, but a series of bugs have been introduced across the stack. Your task is to find and fix them.
+Welcome. This is a monorepo storefront application for browsing and purchasing
+AI-powered "Agentic Personas." The app was recently working, but a series of
+bugs have been introduced across the stack. Your task is to find and fix them.
 
 ## Tech Stack
 
@@ -12,32 +14,38 @@ Welcome! This is a monorepo storefront application for browsing and purchasing A
 ## Getting Started
 
 ```bash
-pnpm install
-pnpm build
-pnpm dev
+corepack pnpm install
+corepack pnpm build
+corepack pnpm dev
 ```
 
 - Frontend: http://localhost:5173
 - API: http://localhost:3001
 
-## Your Task
+## Verification
 
-There are bugs scattered throughout the frontend, backend, and shared packages. Some will be immediately obvious (build failures, runtime crashes), while others are more subtle (incorrect behavior, broken features).
-
-Work through the application and fix as many issues as you can. We're evaluating:
-
-- **Debugging approach** — How you identify and isolate problems
-- **Code comprehension** — How quickly you orient yourself in an unfamiliar codebase
-- **Quality of fixes** — Whether your solutions are correct and clean
-
-Feel free to use any tools or techniques you'd normally use on the job.
+```bash
+corepack pnpm lint
+corepack pnpm test
+corepack pnpm coverage
+corepack pnpm typecheck
+corepack pnpm build
+corepack pnpm e2e
+```
 
 ## Project Structure
 
-```
+```text
 apps/
   api/           # Fastify REST API server
   web/           # React SPA
 packages/
   shared/        # Shared TypeScript types and Zod schemas
 ```
+
+## Persistence Model
+
+The API uses process-local in-memory Maps for users, carts, favorites, and
+orders. This is intentional for the local debugging assessment: data is reset
+when the API process restarts and is not shared across multiple API instances.
+A production deployment should replace this with durable storage.

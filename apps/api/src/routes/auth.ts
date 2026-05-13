@@ -1,18 +1,28 @@
 import type { FastifyInstance } from "fastify";
+import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import { registerSchema, loginSchema, type AuthResponse } from "@acme/shared";
 import { db } from "../db.js";
 import { authenticate } from "../middleware/auth.js";
 
 let userCounter = 0;
+const scryptAsync = promisify(scrypt);
 
-function simpleHash(password: string): string {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `scrypt:${salt}:${derivedKey.toString("hex")}`;
+}
+
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  const [algorithm, salt, hash] = storedHash.split(":");
+  if (algorithm !== "scrypt" || !salt || !hash) {
+    return false;
   }
-  return `hashed_${hash}`;
+
+  const expected = Buffer.from(hash, "hex");
+  const actual = (await scryptAsync(password, salt, expected.length)) as Buffer;
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 export async function authRoutes(app: FastifyInstance) {
@@ -33,7 +43,7 @@ export async function authRoutes(app: FastifyInstance) {
       id,
       username,
       email,
-      passwordHash: simpleHash(password),
+      passwordHash: await hashPassword(password),
     });
 
     const token = app.jwt.sign({ id: user.id, email: user.email });
@@ -54,14 +64,14 @@ export async function authRoutes(app: FastifyInstance) {
     const { email, password } = parsed.data;
     const user = db.users.getByEmail(email);
 
-    if (!user || user.passwordHash !== simpleHash(password)) {
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
       return reply.status(401).send({ error: "Invalid email or password" });
     }
 
     const token = app.jwt.sign({ id: user.id, email: user.email });
     const response = {
       token,
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, username: user.username, email: user.email },
     };
 
     return response;
