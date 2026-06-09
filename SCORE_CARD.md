@@ -1,5 +1,3 @@
----
-
 ## Scoring Guide
 
 | Findings Identified & Fixed | Rating |
