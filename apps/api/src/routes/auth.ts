@@ -59,9 +59,13 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const token = app.jwt.sign({ id: user.id, email: user.email });
-    const response = {
+    // Return the full User (id, username, email) to satisfy the AuthResponse
+    // contract. Omitting username here (register includes it) left the client's
+    // stored user without a username, so the nav bar rendered a blank name
+    // after login until a later /auth/me refetch happened to repair it.
+    const response: AuthResponse = {
       token,
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, username: user.username, email: user.email },
     };
 
     return response;
