@@ -75,7 +75,14 @@ export async function cartRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id: userId } = request.user as { id: string };
       const item = db.cart.getById(request.params.itemId);
-      if (!item) {
+      // Verify the item belongs to the requesting user before deleting.
+      // Without `item.userId !== userId` this was an IDOR: cart ids are
+      // sequential (cart-1, cart-2, ...), so any authenticated user could
+      // delete another user's cart items by guessing the id. (The PUT handler
+      // above already does this check; DELETE was missing it.) Treat
+      // not-found and not-yours identically (404) so item ownership isn't
+      // leaked.
+      if (!item || item.userId !== userId) {
         return reply.status(404).send({ error: "Cart item not found" });
       }
 
