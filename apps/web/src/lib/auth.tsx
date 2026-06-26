@@ -53,6 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Clear the persisted token too, not just React state. The provider's
+    // initializer reads auth_token from localStorage on load, so leaving it
+    // behind meant a refresh after "Sign out" silently logged the user back in.
+    localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
   }, []);
