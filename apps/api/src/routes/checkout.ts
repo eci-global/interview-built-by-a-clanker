@@ -49,6 +49,11 @@ export async function checkoutRoutes(app: FastifyInstance) {
 
     db.orders.create(order);
 
+    // Empty the cart now that its contents have been turned into an order.
+    // Without this the purchased items linger in the cart and can be checked
+    // out again, and the cart/badge keep showing items the user already bought.
+    db.cart.clearForUser(userId);
+
     return reply.status(201).send(order);
   });
 }
