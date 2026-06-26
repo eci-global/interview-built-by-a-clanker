@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
+import { toggleFavoriteRequest } from "~/lib/favorites";
 import { StarRating } from "~/components/StarRating";
 import type { Persona, Cart } from "@acme/shared";
 
@@ -38,10 +39,8 @@ function PersonaDetailPage() {
   });
 
   const toggleFavorite = useMutation({
-    mutationFn: () =>
-      !isFavorited
-        ? api.delete(`/favorites/${personaId}`)
-        : api.post("/favorites", { personaId }),
+    // Add when not favorited, remove when favorited (see toggleFavoriteRequest).
+    mutationFn: () => toggleFavoriteRequest(isFavorited, personaId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
     },
