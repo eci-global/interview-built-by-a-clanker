@@ -361,10 +361,14 @@ export const db = {
         results = results.filter((p) => p.tier === filters.tier);
       }
 
+      // minPrice is a lower bound: keep personas at or ABOVE it (>=).
+      // (This previously used <=, which is the maxPrice test below — so a
+      // minimum-price filter returned the cheapest personas, the opposite.)
       if (filters.minPrice !== undefined) {
-        results = results.filter((p) => p.price <= filters.minPrice!);
+        results = results.filter((p) => p.price >= filters.minPrice!);
       }
 
+      // maxPrice is an upper bound: keep personas at or below it (<=).
       if (filters.maxPrice !== undefined) {
         results = results.filter((p) => p.price <= filters.maxPrice!);
       }
