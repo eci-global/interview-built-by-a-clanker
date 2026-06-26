@@ -64,9 +64,13 @@ function BrowsePage() {
           specialty={search.specialty}
           tier={search.tier}
           sort={search.sort}
+          minPrice={search.minPrice}
+          maxPrice={search.maxPrice}
           onSpecialtyChange={(specialty) => updateSearch({ specialty })}
           onTierChange={(tier) => updateSearch({ tier })}
           onSortChange={(sort) => updateSearch({ sort })}
+          onMinPriceChange={(minPrice) => updateSearch({ minPrice })}
+          onMaxPriceChange={(maxPrice) => updateSearch({ maxPrice })}
         />
 
         <div className="flex-1">

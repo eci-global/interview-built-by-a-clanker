@@ -20,18 +20,34 @@ interface FilterPanelProps {
   specialty?: string;
   tier?: string;
   sort?: string;
+  minPrice?: number;
+  maxPrice?: number;
   onSpecialtyChange: (v: string | undefined) => void;
   onTierChange: (v: string | undefined) => void;
   onSortChange: (v: string | undefined) => void;
+  onMinPriceChange: (v: number | undefined) => void;
+  onMaxPriceChange: (v: number | undefined) => void;
+}
+
+// Convert a number-input value to a number, or undefined when blank/invalid,
+// so clearing the field removes the filter rather than sending NaN.
+function parsePrice(value: string): number | undefined {
+  if (value === "") return undefined;
+  const n = Number(value);
+  return Number.isNaN(n) ? undefined : n;
 }
 
 export function FilterPanel({
   specialty,
   tier,
   sort,
+  minPrice,
+  maxPrice,
   onSpecialtyChange,
   onTierChange,
   onSortChange,
+  onMinPriceChange,
+  onMaxPriceChange,
 }: FilterPanelProps) {
   return (
     <div className="lg:w-56 flex-shrink-0 space-y-6">
@@ -72,6 +88,31 @@ export function FilterPanel({
               {t}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Price</h3>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            aria-label="Minimum price"
+            placeholder="Min"
+            value={minPrice ?? ""}
+            onChange={(e) => onMinPriceChange(parsePrice(e.target.value))}
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+          />
+          <span className="text-gray-400">–</span>
+          <input
+            type="number"
+            min={0}
+            aria-label="Maximum price"
+            placeholder="Max"
+            value={maxPrice ?? ""}
+            onChange={(e) => onMaxPriceChange(parsePrice(e.target.value))}
+            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+          />
         </div>
       </div>
 
