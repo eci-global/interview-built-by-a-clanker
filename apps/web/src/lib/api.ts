@@ -20,9 +20,17 @@ async function request<T>(
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((options.headers as Record<string, string>) ?? {}),
   };
+
+  // Only declare a JSON content-type when we actually send a JSON body.
+  // Fastify rejects requests that advertise `Content-Type: application/json`
+  // but carry an empty body (FST_ERR_CTP_EMPTY_JSON_BODY → 400). Since DELETEs
+  // (and bodyless POSTs) send no body, setting the header unconditionally broke
+  // cart-item and favorite removal.
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
