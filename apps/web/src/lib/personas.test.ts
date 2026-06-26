@@ -24,4 +24,9 @@ describe("personasQuery", () => {
       "/personas?q=rex&sort=rating-desc",
     );
   });
+
+  it("keeps a price bound of 0 instead of dropping it (B20)", () => {
+    expect(personasQuery({ minPrice: 0 }).path).toBe("/personas?minPrice=0");
+    expect(personasQuery({ maxPrice: 0 }).path).toBe("/personas?maxPrice=0");
+  });
 });

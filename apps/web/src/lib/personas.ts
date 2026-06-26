@@ -26,8 +26,12 @@ export function personasQuery(search: PersonaSearchParams) {
   if (search.q) queryString.set("q", search.q);
   if (search.specialty) queryString.set("specialty", search.specialty);
   if (search.tier) queryString.set("tier", search.tier);
-  if (search.minPrice) queryString.set("minPrice", String(search.minPrice));
-  if (search.maxPrice) queryString.set("maxPrice", String(search.maxPrice));
+  // Compare against undefined, not truthiness: a legitimate price of 0 is
+  // falsy, so `if (search.minPrice)` silently dropped a 0 bound.
+  if (search.minPrice !== undefined)
+    queryString.set("minPrice", String(search.minPrice));
+  if (search.maxPrice !== undefined)
+    queryString.set("maxPrice", String(search.maxPrice));
   if (search.sort) queryString.set("sort", search.sort);
 
   const qs = queryString.toString();
