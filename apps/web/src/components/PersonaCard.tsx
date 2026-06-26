@@ -60,7 +60,10 @@ export function PersonaCard({ persona }: { persona: Persona }) {
           </span>
         </div>
         <p className="text-lg font-bold text-gray-900">
-          ${(persona.price * 100).toFixed(2)}
+          {/* price is already in dollars (e.g. 49.99); render it directly.
+              Do NOT multiply by 100 — that turned $49.99 into $4999.00 and was
+              inconsistent with the detail page and cart, which format price as-is. */}
+          ${persona.price.toFixed(2)}
           <span className="text-xs font-normal text-gray-500">/mo</span>
         </p>
       </div>
