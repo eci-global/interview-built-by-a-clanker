@@ -39,6 +39,11 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
       <div className="flex items-center gap-2">
         <button
           onClick={() => onUpdateQuantity(item.quantity - 1)}
+          // Disable at quantity 1: the API's updateCartItemSchema requires
+          // quantity >= 1, so decrementing to 0 just 400s and fails silently.
+          // The disabled: styles were already here but had no disabled prop to
+          // act on. (To zero out an item the user uses Remove.)
+          disabled={item.quantity <= 1}
           className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           -
