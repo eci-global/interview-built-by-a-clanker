@@ -1,6 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // The API is compiled with tsc and run on Node (tsx/node) as ESM with
+    // explicit .js import suffixes. "nodenext" is the resolution mode that
+    // matches that runtime and honors package.json "exports"; the inherited
+    // "bundler" mode is intended for bundlers and can mask real Node
+    // resolution problems.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "outDir": "dist",
     "rootDir": "src"
   },
