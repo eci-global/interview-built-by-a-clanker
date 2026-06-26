@@ -1,3 +1,7 @@
+// Literal option lists. These intentionally mirror PersonaSpecialty/PersonaTier
+// in @acme/shared but are NOT imported from there: those are runtime values, and
+// importing them would pull the shared barrel (zod + every schema) into the
+// client bundle (~13 KB gzip) just to enumerate six strings.
 const specialties = [
   "Engineering",
   "Design",
