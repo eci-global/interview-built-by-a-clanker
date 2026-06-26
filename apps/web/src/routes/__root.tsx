@@ -1,8 +1,7 @@
 import { createRootRoute, Link, Outlet, useRouter } from "@tanstack/react-router";
 import { useAuth } from "~/lib/auth";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "~/lib/api";
-import type { Cart } from "@acme/shared";
+import { cartQuery, cartCount as countItems } from "~/lib/cart";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -12,13 +11,12 @@ function RootLayout() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const { data: cart } = useQuery({
-    queryKey: ["cart-count"],
-    queryFn: () => api.get<Cart>("/cart"),
-    enabled: !!user,
-  });
+  // Use the shared ["cart"] query so the badge refetches whenever a cart
+  // mutation invalidates ["cart"] (it previously used a separate ["cart-count"]
+  // key and went stale after add/remove/checkout).
+  const { data: cart } = useQuery({ ...cartQuery(), enabled: !!user });
 
-  const cartCount = cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+  const cartCount = countItems(cart);
 
   return (
     <div className="min-h-screen bg-gray-50">
