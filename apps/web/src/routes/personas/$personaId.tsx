@@ -26,7 +26,12 @@ function PersonaDetailPage() {
 
   // Use the shared favorites query (same key AND shape as the favorites page)
   // so navigating between the two doesn't corrupt either one's cache.
-  const { data: favoritesData } = useQuery(favoritesQuery());
+  // Gate on `user` like the cart/favorites pages: /favorites is auth-only, so
+  // firing it for logged-out visitors just produces a guaranteed 401.
+  const { data: favoritesData } = useQuery({
+    ...favoritesQuery(),
+    enabled: !!user,
+  });
   const isFavorited = isPersonaFavorited(favoritesData, personaId);
 
   const addToCart = useMutation({
