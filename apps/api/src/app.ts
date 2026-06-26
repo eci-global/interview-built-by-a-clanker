@@ -31,7 +31,12 @@ export async function buildApp(
     // allow-list or the browser's preflight blocks those requests cross-origin.
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   });
-  await app.register(jwt, { secret: "agentic-personas-dev-secret" });
+  // Read the signing secret from the environment so production isn't pinned to
+  // a public, source-committed value (anyone who has it can forge tokens). The
+  // literal is kept only as a local-dev fallback.
+  await app.register(jwt, {
+    secret: process.env.JWT_SECRET ?? "agentic-personas-dev-secret",
+  });
 
   await app.register(personaRoutes);
   await app.register(authRoutes);

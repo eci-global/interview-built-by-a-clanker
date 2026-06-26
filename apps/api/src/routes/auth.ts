@@ -2,18 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { registerSchema, loginSchema, type AuthResponse } from "@acme/shared";
 import { db } from "../db.js";
 import { authenticate } from "../middleware/auth.js";
+import { hashPassword, verifyPassword } from "../password.js";
 
 let userCounter = 0;
-
-function simpleHash(password: string): string {
-  let hash = 0;
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return `hashed_${hash}`;
-}
 
 export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/register", async (request, reply) => {
@@ -33,7 +24,7 @@ export async function authRoutes(app: FastifyInstance) {
       id,
       username,
       email,
-      passwordHash: simpleHash(password),
+      passwordHash: hashPassword(password),
     });
 
     const token = app.jwt.sign({ id: user.id, email: user.email });
@@ -54,7 +45,7 @@ export async function authRoutes(app: FastifyInstance) {
     const { email, password } = parsed.data;
     const user = db.users.getByEmail(email);
 
-    if (!user || user.passwordHash !== simpleHash(password)) {
+    if (!user || !verifyPassword(password, user.passwordHash)) {
       return reply.status(401).send({ error: "Invalid email or password" });
     }
 
