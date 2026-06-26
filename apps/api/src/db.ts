@@ -1,4 +1,4 @@
-import type { Persona, User, CartItem, Order } from "@acme/shared";
+import type { Persona, User, Order } from "@acme/shared";
 
 interface StoredUser extends User {
   passwordHash: string;
