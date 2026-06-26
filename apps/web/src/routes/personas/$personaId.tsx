@@ -3,7 +3,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
-import { toggleFavoriteRequest } from "~/lib/favorites";
+import {
+  toggleFavoriteRequest,
+  favoritesQuery,
+  isPersonaFavorited,
+} from "~/lib/favorites";
 import { StarRating } from "~/components/StarRating";
 import type { Persona, Cart } from "@acme/shared";
 
@@ -20,15 +24,10 @@ function PersonaDetailPage() {
     queryFn: () => api.get<Persona>(`/personas/${personaId}`),
   });
 
-  const { data: favorites = [] } = useQuery({
-    queryKey: ["favorites"],
-    queryFn: async () => {
-      const res = await api.get<{ favorites: Persona[] }>("/favorites");
-      return res.favorites.map((p) => p.id);
-    },
-  });
-
-  const isFavorited = favorites.includes(personaId);
+  // Use the shared favorites query (same key AND shape as the favorites page)
+  // so navigating between the two doesn't corrupt either one's cache.
+  const { data: favoritesData } = useQuery(favoritesQuery());
+  const isFavorited = isPersonaFavorited(favoritesData, personaId);
 
   const addToCart = useMutation({
     mutationFn: () =>

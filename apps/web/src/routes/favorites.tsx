@@ -4,7 +4,7 @@ import { api } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
 import { PersonaCard } from "~/components/PersonaCard";
-import type { Persona } from "@acme/shared";
+import { favoritesQuery } from "~/lib/favorites";
 
 export const Route = createFileRoute("/favorites")({
   component: FavoritesPage,
@@ -13,9 +13,10 @@ export const Route = createFileRoute("/favorites")({
 function FavoritesPage() {
   const { user } = useAuth();
 
+  // Shared canonical favorites query — see lib/favorites.ts. Must match the key
+  // and shape used by the detail page to avoid cache-shape corruption.
   const { data, isLoading } = useQuery({
-    queryKey: ["favorites"],
-    queryFn: () => api.get<{ favorites: Persona[] }>("/favorites"),
+    ...favoritesQuery(),
     enabled: !!user,
   });
 

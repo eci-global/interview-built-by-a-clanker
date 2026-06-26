@@ -1,4 +1,35 @@
+import type { Persona } from "@acme/shared";
 import { api } from "./api";
+
+export interface FavoritesResponse {
+  favorites: Persona[];
+}
+
+/**
+ * The single canonical react-query definition for "this user's favorites".
+ *
+ * Both the favorites page and the persona detail page need this data. They
+ * previously each declared their own `["favorites"]` query but returned
+ * DIFFERENT shapes — the list page `{ favorites: Persona[] }` and the detail
+ * page a mapped `string[]` of ids. Same key + different shapes means whichever
+ * populates the cache first dictates what the other reads, so visiting a detail
+ * page poisoned the list page (it then rendered "no favorites"). Sharing one
+ * query definition guarantees a single key AND a single shape.
+ */
+export function favoritesQuery() {
+  return {
+    queryKey: ["favorites"] as const,
+    queryFn: () => api.get<FavoritesResponse>("/favorites"),
+  };
+}
+
+/** Whether a given persona id is in the favorites response. */
+export function isPersonaFavorited(
+  data: FavoritesResponse | undefined,
+  personaId: string,
+): boolean {
+  return data?.favorites.some((p) => p.id === personaId) ?? false;
+}
 
 /**
  * Perform the correct favorite toggle request.
