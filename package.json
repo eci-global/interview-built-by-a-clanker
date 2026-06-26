@@ -1,6 +1,7 @@
 {
   "name": "agentic-personas-storefront",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
@@ -10,8 +11,12 @@
     "clean": "turbo clean"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "globals": "^17.7.0",
     "turbo": "^2.4.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.62.0"
   },
   "packageManager": "pnpm@9.15.0"
 }
