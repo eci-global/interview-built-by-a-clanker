@@ -56,3 +56,44 @@ describe("BUG-002: GET /personas?minPrice only returns personas at or above minP
     expect(carl).toBeUndefined();
   });
 });
+
+// BUG-020 — /personas passed raw query strings to the DB with no validation, so
+// a non-numeric price (NaN) silently wiped the result set and invalid enum/sort
+// values returned empty/unsorted with a 200. Fix: parse via personaFilterSchema.
+describe("BUG-020: GET /personas validates and coerces query params", () => {
+  let app: FastifyInstance;
+
+  afterEach(async () => {
+    await app?.close();
+  });
+
+  it("rejects a non-numeric minPrice with 400 (not a silent empty result)", async () => {
+    app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/personas?minPrice=abc" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects an invalid specialty enum with 400", async () => {
+    app = await buildApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/personas?specialty=engineering",
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects an invalid sort value with 400", async () => {
+    app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/personas?sort=bogus" });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("accepts and coerces a valid numeric minPrice", async () => {
+    app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/personas?minPrice=60" });
+    expect(res.statusCode).toBe(200);
+    const list = res.json<Persona[]>();
+    expect(Array.isArray(list)).toBe(true);
+    for (const p of list) expect(p.price).toBeGreaterThanOrEqual(60);
+  });
+});
