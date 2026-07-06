@@ -102,7 +102,7 @@ describe("BUG-012: favorite toggle calls correct api method", () => {
     // Set up queries: not favorited
     mockUseQuery.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => {
       if (queryKey[0] === "persona") return { data: samplePersona, isLoading: false };
-      if (queryKey[0] === "favorites") return { data: [], isLoading: false };
+      if (queryKey[0] === "favorites") return { data: { favorites: [] }, isLoading: false };
       return { data: undefined, isLoading: false };
     });
 
@@ -143,7 +143,7 @@ describe("BUG-012: favorite toggle calls correct api method", () => {
 
     mockUseQuery.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => {
       if (queryKey[0] === "persona") return { data: samplePersona, isLoading: false };
-      if (queryKey[0] === "favorites") return { data: ["p-001"], isLoading: false };
+      if (queryKey[0] === "favorites") return { data: { favorites: [samplePersona] }, isLoading: false };
       return { data: undefined, isLoading: false };
     });
 
@@ -169,5 +169,50 @@ describe("BUG-012: favorite toggle calls correct api method", () => {
     expect(hoisted.mockApiDelete).toHaveBeenCalledOnce();
     expect(hoisted.mockApiDelete).toHaveBeenCalledWith("/favorites/p-001");
     expect(hoisted.mockApiPost).not.toHaveBeenCalled();
+  });
+});
+
+// BUG-016 — the detail page shared queryKey ["favorites"] with favorites.tsx but
+// stored a *different* shape (string[] vs { favorites: Persona[] }) and had no
+// enabled guard. Fix: same shape + enabled: !!user so the cache is consistent.
+describe("BUG-016: favorites query is shape-consistent and auth-guarded", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    hoisted.mockApiGet.mockResolvedValue({ favorites: [samplePersona] });
+  });
+
+  it("uses enabled:!!user and a queryFn returning { favorites: Persona[] } (not a mapped string[])", async () => {
+    if (!routeRef.component) throw new Error("routeRef.component is null");
+
+    const captured: Record<
+      string,
+      { queryKey: unknown[]; enabled?: boolean; queryFn: () => Promise<unknown> }
+    > = {};
+    mockUseQuery.mockImplementation(
+      (opts: {
+        queryKey: unknown[];
+        enabled?: boolean;
+        queryFn: () => Promise<unknown>;
+      }) => {
+        captured[String(opts.queryKey[0])] = opts;
+        if (opts.queryKey[0] === "persona")
+          return { data: samplePersona, isLoading: false };
+        if (opts.queryKey[0] === "favorites")
+          return { data: { favorites: [] }, isLoading: false };
+        return { data: undefined, isLoading: false };
+      }
+    );
+    mockUseMutation.mockReturnValue({ mutate: vi.fn(), isPending: false });
+
+    render(React.createElement(routeRef.component));
+
+    const fav = captured["favorites"];
+    expect(fav, "no favorites query registered").toBeDefined();
+    // enabled guard present — useAuth mock returns a logged-in user
+    expect(fav.enabled).toBe(true);
+    // queryFn returns the SAME shape favorites.tsx caches — not a string[]
+    const result = await fav.queryFn();
+    expect(result).toEqual({ favorites: [samplePersona] });
+    expect(Array.isArray(result)).toBe(false);
   });
 });

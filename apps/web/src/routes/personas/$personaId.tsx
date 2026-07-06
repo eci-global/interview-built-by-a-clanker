@@ -19,15 +19,17 @@ function PersonaDetailPage() {
     queryFn: () => api.get<Persona>(`/personas/${personaId}`),
   });
 
-  const { data: favorites = [] } = useQuery({
+  // Share the exact same key + shape as favorites.tsx so the ["favorites"]
+  // cache is consistent across both pages; guard on auth so logged-out visits
+  // don't fire an unauthenticated request.
+  const { data: favoritesData } = useQuery({
     queryKey: ["favorites"],
-    queryFn: async () => {
-      const res = await api.get<{ favorites: Persona[] }>("/favorites");
-      return res.favorites.map((p) => p.id);
-    },
+    queryFn: () => api.get<{ favorites: Persona[] }>("/favorites"),
+    enabled: !!user,
   });
 
-  const isFavorited = favorites.includes(personaId);
+  const isFavorited =
+    favoritesData?.favorites.some((p) => p.id === personaId) ?? false;
 
   const addToCart = useMutation({
     mutationFn: () =>
