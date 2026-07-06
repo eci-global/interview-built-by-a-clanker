@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 interface StarRatingProps {
   rating: number;
   size?: "sm" | "md";
@@ -5,22 +7,26 @@ interface StarRatingProps {
 
 export function StarRating({ rating, size = "md" }: StarRatingProps) {
   const starSize = size === "sm" ? "w-4 h-4" : "w-5 h-5";
+  // Unique per component instance so partial-star gradients on the same page
+  // (e.g. the browse grid) don't share a global id="half".
+  const gradientBaseId = useId();
 
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = Math.min(1, Math.max(0, rating - i));
+        const halfId = `${gradientBaseId}-${i}`;
         return (
           <svg
             key={i}
             className={`${starSize} ${fill > 0 ? "text-yellow-400" : "text-gray-200"}`}
-            fill={fill >= 1 ? "currentColor" : fill > 0 ? "url(#half)" : "none"}
+            fill={fill >= 1 ? "currentColor" : fill > 0 ? `url(#${halfId})` : "none"}
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
             {fill > 0 && fill < 1 && (
               <defs>
-                <linearGradient id="half">
+                <linearGradient id={halfId}>
                   <stop offset={`${fill * 100}%`} stopColor="currentColor" />
                   <stop offset={`${fill * 100}%`} stopColor="transparent" />
                 </linearGradient>
