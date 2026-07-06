@@ -14,7 +14,7 @@ export const orderSchema = z.object({
   items: z.array(cartItemSchema),
   total: z.number(),
   customerName: z.string(),
-  customerEmail: z.string(),
+  customerEmail: z.string().email(),
   createdAt: z.string(),
 });
 
