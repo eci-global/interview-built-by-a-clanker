@@ -20,7 +20,7 @@ export const personaSchema = z.object({
   name: z.string(),
   tagline: z.string(),
   description: z.string(),
-  avatarUrl: z.string(),
+  avatarUrl: z.string().url(),
   specialty: z.enum([
     "Engineering",
     "Design",
@@ -30,9 +30,9 @@ export const personaSchema = z.object({
     "Product",
   ]),
   capabilities: z.array(z.string()),
-  price: z.number(),
+  price: z.number().positive(),
   rating: z.number().min(1).max(5),
-  reviewCount: z.number(),
+  reviewCount: z.number().int().nonnegative(),
   tier: z.enum(["Starter", "Pro", "Enterprise"]),
 });
 
