@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { User, AuthResponse } from "@acme/shared";
 import { api, ApiError } from "./api";
+import { queryClient } from "./queryClient";
 
 interface AuthContextType {
   user: User | null;
@@ -56,6 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
+    // Evict all cached queries so the next user on this session can't see
+    // the previous user's cart/favorites data.
+    queryClient.clear();
   }, []);
 
   return (
