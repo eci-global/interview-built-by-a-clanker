@@ -11,7 +11,7 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const { data: cart, isLoading } = useQuery({
@@ -34,6 +34,16 @@ function CartPage() {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
   });
+
+  if (authLoading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="bg-white rounded-xl border p-6 h-24" />
+        ))}
+      </div>
+    );
+  }
 
   if (!user) {
     return (
