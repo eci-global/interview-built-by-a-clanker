@@ -12,6 +12,8 @@ export default defineConfig({
     },
   },
   server: {
+    host: true, // bind 0.0.0.0 so the sandbox/action can reach the dev server
     port: 5173,
+    strictPort: true, // fail fast if 5173 is taken rather than silently using another port
   },
 });
