@@ -121,12 +121,12 @@ The repo also provides the conventional `agent-*-command.sh` lifecycle scripts a
 the root, used when the validation harness resolves lifecycle by script name rather
 than reading `lore.yml`. They delegate to the same commands:
 
-| Script                    | Command                          |
-| ------------------------- | -------------------------------- |
-| `agent-setup-command.sh`  | `pnpm install --frozen-lockfile` |
-| `agent-build-command.sh`  | `pnpm build`                     |
-| `agent-verify-command.sh` | `pnpm typecheck`                 |
-| `agent-start-command.sh`  | `bash scripts/start-smoke.sh`    |
+| Script                            | Command                          |
+| --------------------------------- | -------------------------------- |
+| `agent-setup-command.sh`          | `pnpm install --frozen-lockfile` |
+| `agent-build-command.sh`          | `pnpm build`                     |
+| `agent-verification-command.sh`   | `pnpm typecheck`                 |
+| `agent-start-command.sh`          | `bash scripts/start-smoke.sh`    |
 
 ## Manual verification
 
