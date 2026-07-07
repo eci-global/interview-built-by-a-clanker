@@ -1,0 +1,12 @@
+{
+  "covered": [
+    "eci.yml file exists at repository root",
+    "File declares product value of demos",
+    "File is valid, well-formed YAML parseable by standard tooling",
+    "File is minimal and human-readable (unquoted YAML, single field)",
+    "Structure follows metadata conventions recognized by tooling",
+    "No unintended changes to existing files or build/toolchain"
+  ],
+  "missing": [],
+  "complete": true
+}

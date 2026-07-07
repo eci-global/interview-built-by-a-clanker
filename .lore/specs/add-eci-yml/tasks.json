@@ -1,0 +1,27 @@
+[
+  {
+    "order": 1,
+    "title": "Create eci.yml metadata file",
+    "description": "Add a new eci.yml file at the repository root declaring a single top-level product field set to demos, using unquoted YAML with a trailing newline, UTF-8 encoding, and LF line endings.",
+    "area": "infrastructure",
+    "dependsOn": []
+  },
+  {
+    "order": 2,
+    "title": "Verify file contents and YAML validity",
+    "description": "Confirm the file exists at the repo root, contains exactly 'product: demos', and parses as valid YAML resolving product to demos.",
+    "area": "testing",
+    "dependsOn": [
+      1
+    ]
+  },
+  {
+    "order": 3,
+    "title": "Verify no unintended changes or build impact",
+    "description": "Confirm via version control that eci.yml is the only added file, no existing files are modified, and the standard toolchain remains unaffected.",
+    "area": "testing",
+    "dependsOn": [
+      1
+    ]
+  }
+]
