@@ -9,8 +9,15 @@ echo "[start-smoke] Starting API (@acme/api) in background..."
 nohup pnpm --filter @acme/api start >"$API_LOG" 2>&1 &
 API_PID=$!
 
+WEB_PID=""
+
 cleanup() {
-  echo "[start-smoke] Cleaning up API (pid $API_PID)..."
+  echo "[start-smoke] Cleaning up..."
+  if [ -n "$WEB_PID" ]; then
+    echo "[start-smoke] Killing web (pid $WEB_PID)..."
+    kill "$WEB_PID" 2>/dev/null || true
+  fi
+  echo "[start-smoke] Killing API (pid $API_PID)..."
   kill "$API_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -34,7 +41,16 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 
-echo "[start-smoke] Starting web (@acme/web) in the foreground..."
-# Run Vite in the foreground so the action's health poll (baseUrl + healthPath)
-# hits a live server and the frontend stays up for browsing.
-exec pnpm --filter @acme/web dev -- --host 0.0.0.0
+echo "[start-smoke] Starting web (@acme/web) preview in the foreground..."
+# Serve the already-built static frontend with `vite preview`. The build phase
+# (`pnpm build`) must have produced apps/web/dist/. Preview is a plain static
+# server that reliably answers the health poll with HTTP 200 and serves the SPA.
+if [ ! -f "apps/web/dist/index.html" ]; then
+  echo "[start-smoke] ERROR: apps/web/dist/index.html is missing." >&2
+  echo "[start-smoke] The build phase must run before start (pnpm build produces apps/web/dist/)." >&2
+  exit 1
+fi
+
+pnpm --filter @acme/web preview -- --host 0.0.0.0 --port 5173 --strictPort &
+WEB_PID=$!
+wait "$WEB_PID"

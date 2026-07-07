@@ -21,12 +21,13 @@ Additional parameters:
 
 - **`workingDir: .`** — all root scripts run from the monorepo root.
 - **`baseUrl: http://localhost:5173`** — this **overrides** the Lore reference
-  default (port 3000). `5173` is the Vite dev server origin and the CORS-allowed
-  origin for the API.
+  default (port 3000). `5173` is the Vite preview server origin and the
+  CORS-allowed origin for the API.
 - **`healthPath: /`** — the action polls `curl -sf {baseUrl}{healthPath}`, i.e.
-  `http://localhost:5173/`, against the foregrounded process (Vite). `/` returns
-  the SPA shell (HTTP 200). The API's own `/health` is gated inside the start
-  script, **not** via the action's poll (Vite does not serve `/health`).
+  `http://localhost:5173/`, against the foregrounded process (`vite preview`).
+  `/` returns the built SPA shell (HTTP 200). The API's own `/health` is gated
+  inside the start script, **not** via the action's poll (the preview server
+  does not serve `/health`).
 - **`browsePaths`** — only the two public pages that render meaningfully without
   authentication:
   - `/` — the Browse page.
@@ -44,12 +45,19 @@ Additional parameters:
    (`{"status":"ok"}`), with a bounded retry loop (60 attempts × 2s = 2 minutes).
    If the API exits early or never becomes healthy, the script prints the API
    logs and exits non-zero so the action fails fast.
-3. Once the API is healthy, launches the Vite dev server in the **foreground**
-   (`pnpm --filter @acme/web dev -- --host 0.0.0.0`). This keeps the process
-   alive for the action's health poll and for browsing.
+3. Once the API is healthy, launches the Vite **preview** server in the
+   **foreground** (`pnpm --filter @acme/web preview -- --host 0.0.0.0 --port 5173
+   --strictPort`), serving the built static output in `apps/web/dist/`. This
+   keeps the process alive for the action's health poll and for browsing. A guard
+   fails fast with a clear message if `apps/web/dist/index.html` is missing (i.e.
+   the build phase did not run), instead of a silent 5-minute timeout. Because
+   `vite preview` is a plain static file server (no dev transform pipeline or
+   host-check middleware), it deterministically returns HTTP 200 for `/`.
 
-A `trap cleanup EXIT` kills the background API when the foregrounded Vite process
-terminates, avoiding orphaned processes across runs.
+A `trap cleanup EXIT` kills both the background API and the foregrounded preview
+process (tracked via `WEB_PID`) when the script terminates, avoiding orphaned
+processes across runs. The web server is started in the background and `wait`ed
+on (not `exec`'d), so the trap still fires on exit.
 
 This ordering matters because the frontend hardcodes `API_BASE =
 "http://localhost:3001"` (`apps/web/src/lib/api.ts`) and the API's CORS is locked
@@ -107,24 +115,17 @@ necessarily a wiring defect.
 - **Frozen-lockfile error:** `--frozen-lockfile` fails if `pnpm-lock.yaml` is out
   of sync with `package.json`. If a sandbox reports this, drop the flag and use
   plain `pnpm install`.
-- **Port conflicts:** Vite uses `strictPort: true` (`apps/web/vite.config.ts`),
-  so it fails fast if `5173` is occupied. The API has no equivalent guard; if
-  `3001` is taken, the API start errors and the script's early-exit check surfaces
-  it via the API logs.
+- **Port conflicts:** Vite preview uses `strictPort: true`
+  (`apps/web/vite.config.ts` plus `--strictPort`), so it fails fast if `5173` is
+  occupied. The API has no equivalent guard; if `3001` is taken, the API start
+  errors and the script's early-exit check surfaces it via the API logs.
 - **Health-poll target:** The action polls the **frontend**, not the API. Keep
   `startCommand` pointed at `scripts/start-smoke.sh`; pointing it directly at
-  `pnpm --filter @acme/web dev` would let the frontend come up before the API.
-- **Vite host-check (403 "Blocked request"):** The dev server binds to
-  `0.0.0.0` (`host: true` plus `--host 0.0.0.0`). Vite 6's hardened host-check
-  validates the incoming `Host` header against `server.allowedHosts` and returns
-  **HTTP 403 "Blocked request"** for hosts it doesn't recognize. Because the
-  health poll runs `curl -sf http://localhost:5173/`, a 403 makes `curl -f` fail
-  and the poll times out even though Vite is "ready" and listening. To avoid
-  this, `apps/web/vite.config.ts` sets `server.allowedHosts: true`, disabling the
-  host-check so any `Host` header (`localhost` plus sandbox network
-  hostnames/IPs) is accepted and the poll returns **HTTP 200** instead of 403.
-  This is safe here because the smoke-test/dev context is a trusted, ephemeral
-  sandbox rather than a public-facing server.
+  `pnpm --filter @acme/web preview` would let the frontend come up before the API.
+- **Missing build output:** `vite preview` serves `apps/web/dist/`, so the build
+  phase (`pnpm build`) must run before start. The start script guards against a
+  missing `apps/web/dist/index.html` and exits non-zero with a clear message
+  rather than timing out.
 
 ## Agent lifecycle scripts
 
@@ -147,7 +148,7 @@ From the repository root:
 pnpm install --frozen-lockfile   # setup
 pnpm build                       # build: @acme/shared → @acme/api → @acme/web
 pnpm typecheck                   # verify
-bash scripts/start-smoke.sh      # start (API-gated, then Vite in foreground)
+bash scripts/start-smoke.sh      # start (API-gated, then vite preview in foreground)
 ```
 
 Then, in another shell:
