@@ -1,0 +1,16 @@
+{
+  "covered": [
+    "Smoke-test action installs dependencies including dev dependencies without manual intervention",
+    "Build phase compiles full monorepo and typechecks successfully",
+    "Verification phase runs and passes using typecheck as strongest available signal",
+    "Start phase launches API and confirms health before serving frontend, keeps frontend running",
+    "Action configured to use correct frontend base URL rather than default",
+    "Action browses only public pages that render without authentication",
+    "Documentation flags absence of auth bypass, lack of test suite, and no database/.NET setup required",
+    "Vite dev server binds to 0.0.0.0 on fixed port 5173 with strictPort matching manifest baseUrl",
+    "API production start script runs compiled entry on port 3001 with working /health endpoint",
+    "End-to-end verification of setup, build, verify, and start flow"
+  ],
+  "missing": [],
+  "complete": true
+}

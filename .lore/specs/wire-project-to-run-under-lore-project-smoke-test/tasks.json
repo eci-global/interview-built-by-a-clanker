@@ -1,0 +1,54 @@
+[
+  {
+    "order": 1,
+    "title": "Add Lore action manifest",
+    "description": "Create a lore.yml at the repository root declaring the project-smoke-test parameters (setup, build, verify, start commands, baseUrl, healthPath, and browse paths) matched to this monorepo's pnpm/Turbo tooling and ports.",
+    "area": "infrastructure",
+    "dependsOn": []
+  },
+  {
+    "order": 2,
+    "title": "Add API-gated smoke start script",
+    "description": "Create scripts/start-smoke.sh that launches the compiled API in the background, polls its /health endpoint until healthy with a bounded retry loop, then serves the Vite frontend in the foreground, cleaning up the API on exit.",
+    "area": "infrastructure",
+    "dependsOn": []
+  },
+  {
+    "order": 3,
+    "title": "Bind Vite dev server to all interfaces",
+    "description": "Update the Vite config so the dev server binds to 0.0.0.0 on a fixed port 5173 with strictPort, ensuring the sandbox and action can reach the frontend and the port matches the manifest baseUrl.",
+    "area": "frontend",
+    "dependsOn": []
+  },
+  {
+    "order": 4,
+    "title": "Confirm API production start script",
+    "description": "Verify (and add if missing) the API package's start script that runs the compiled entry point on port 3001 with a working /health endpoint, without changing the port or host.",
+    "area": "api",
+    "dependsOn": []
+  },
+  {
+    "order": 5,
+    "title": "Document smoke-test wiring and caveats",
+    "description": "Create docs/SMOKE_TEST.md describing the phase-to-command mapping, the frontend baseUrl override, start ordering, and clearly flagging the absence of a database/.NET setup, no frontend auth bypass, no test/lint suite, and that seeded bugs may cause legitimate failures.",
+    "area": "documentation",
+    "dependsOn": [
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "order": 6,
+    "title": "Verify end-to-end smoke-test flow",
+    "description": "Run the full setup, build, verify, and start sequence to confirm dependencies install, the monorepo builds and typechecks, the API becomes healthy before the frontend, and the public pages render without authentication.",
+    "area": "testing",
+    "dependsOn": [
+      1,
+      2,
+      3,
+      4
+    ]
+  }
+]
