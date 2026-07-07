@@ -114,6 +114,17 @@ necessarily a wiring defect.
 - **Health-poll target:** The action polls the **frontend**, not the API. Keep
   `startCommand` pointed at `scripts/start-smoke.sh`; pointing it directly at
   `pnpm --filter @acme/web dev` would let the frontend come up before the API.
+- **Vite host-check (403 "Blocked request"):** The dev server binds to
+  `0.0.0.0` (`host: true` plus `--host 0.0.0.0`). Vite 6's hardened host-check
+  validates the incoming `Host` header against `server.allowedHosts` and returns
+  **HTTP 403 "Blocked request"** for hosts it doesn't recognize. Because the
+  health poll runs `curl -sf http://localhost:5173/`, a 403 makes `curl -f` fail
+  and the poll times out even though Vite is "ready" and listening. To avoid
+  this, `apps/web/vite.config.ts` sets `server.allowedHosts: true`, disabling the
+  host-check so any `Host` header (`localhost` plus sandbox network
+  hostnames/IPs) is accepted and the poll returns **HTTP 200** instead of 403.
+  This is safe here because the smoke-test/dev context is a trusted, ephemeral
+  sandbox rather than a public-facing server.
 
 ## Agent lifecycle scripts
 
