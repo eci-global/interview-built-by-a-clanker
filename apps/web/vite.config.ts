@@ -18,6 +18,8 @@ export default defineConfig({
     allowedHosts: true, // Vite 6 host-check: allow any Host header (localhost + sandbox network hostnames/IPs) so the smoke-test health poll on http://localhost:5173/ is not 403-blocked
   },
   preview: {
+    // `vite preview` serves the built apps/web/dist/ and is the authoritative smoke target
+    // matching baseUrl http://localhost:5173/ in lore.yml.
     host: true,
     port: 5173,
     strictPort: true,
