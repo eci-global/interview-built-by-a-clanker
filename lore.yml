@@ -1,0 +1,16 @@
+# Lore action configuration for the Agentic Personas Storefront.
+# This project is a pnpm + Turborepo TypeScript monorepo with an in-memory
+# data store. It has NO database daemon, NO .NET/Aspire, and NO auth bypass in
+# the frontend. See docs/SMOKE_TEST.md for the full set of caveats.
+
+project-smoke-test:
+  workingDir: .
+  setupCommand: pnpm install --frozen-lockfile
+  buildCommand: pnpm build
+  verifyCommand: pnpm typecheck
+  startCommand: bash scripts/start-smoke.sh
+  baseUrl: http://localhost:5173
+  healthPath: /
+  browsePaths:
+    - /
+    - /personas/p-001
