@@ -115,6 +115,19 @@ necessarily a wiring defect.
   `startCommand` pointed at `scripts/start-smoke.sh`; pointing it directly at
   `pnpm --filter @acme/web dev` would let the frontend come up before the API.
 
+## Agent lifecycle scripts
+
+The repo also provides the conventional `agent-*-command.sh` lifecycle scripts at
+the root, used when the validation harness resolves lifecycle by script name rather
+than reading `lore.yml`. They delegate to the same commands:
+
+| Script                    | Command                          |
+| ------------------------- | -------------------------------- |
+| `agent-setup-command.sh`  | `pnpm install --frozen-lockfile` |
+| `agent-build-command.sh`  | `pnpm build`                     |
+| `agent-verify-command.sh` | `pnpm typecheck`                 |
+| `agent-start-command.sh`  | `bash scripts/start-smoke.sh`    |
+
 ## Manual verification
 
 From the repository root:
