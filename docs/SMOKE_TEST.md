@@ -46,13 +46,23 @@ Additional parameters:
    If the API exits early or never becomes healthy, the script prints the API
    logs and exits non-zero so the action fails fast.
 3. Once the API is healthy, launches the Vite **preview** server in the
-   **foreground** (`pnpm --filter @acme/web preview -- --host 0.0.0.0 --port 5173
-   --strictPort`), serving the built static output in `apps/web/dist/`. This
-   keeps the process alive for the action's health poll and for browsing. A guard
-   fails fast with a clear message if `apps/web/dist/index.html` is missing (i.e.
-   the build phase did not run), instead of a silent 5-minute timeout. Because
-   `vite preview` is a plain static file server (no dev transform pipeline or
-   host-check middleware), it deterministically returns HTTP 200 for `/`.
+   **foreground** (`pnpm --filter @acme/web exec vite preview --host 0.0.0.0
+   --port 5173 --strictPort`), serving the built static output in
+   `apps/web/dist/`. This keeps the process alive for the action's health poll
+   and for browsing. A guard fails fast with a clear message if
+   `apps/web/dist/index.html` is missing (i.e. the build phase did not run),
+   instead of a silent 5-minute timeout. Because `vite preview` is a plain static
+   file server (no dev transform pipeline or host-check middleware), it
+   deterministically returns HTTP 200 for `/`.
+
+   The invocation runs `vite` directly via `pnpm --filter @acme/web exec` rather
+   than `pnpm --filter @acme/web preview -- <flags>`. The `pnpm run <script> --
+   <flags>` form forwards a literal `--` into the script, so vite's CLI (cac)
+   treats everything after it as unparsed overflow args and **silently drops**
+   `--host`/`--port`/`--strictPort`. Running `vite` directly makes those flags
+   apply. Even so, the authoritative bind comes from `apps/web/vite.config.ts`,
+   whose `preview.host` is set to an explicit IPv4 `"0.0.0.0"` (see the loopback
+   bind caveat below).
 
 A `trap cleanup EXIT` kills both the background API and the foregrounded preview
 process (tracked via `WEB_PID`) when the script terminates, avoiding orphaned
@@ -65,6 +75,23 @@ to `origin: "http://localhost:5173"`. If the frontend came up before the API,
 browse steps would show fetch failures.
 
 ## Caveats — how this project differs from the Lore reference stack
+
+### Vite binds an explicit IPv4 address (loopback reachability)
+
+Both the dev `server` and the `preview` server in
+[`apps/web/vite.config.ts`](../apps/web/vite.config.ts) bind
+`host: "0.0.0.0"` (an explicit IPv4 address) rather than `host: true`. This
+matters because the action's health poll runs `curl -sf http://localhost:5173/`,
+and in the sandbox `localhost` resolves to the IPv4 loopback `127.0.0.1` (the
+API's `curl http://localhost:3001/health` succeeds against its own
+`host: "0.0.0.0"` IPv4 bind).
+
+Vite's `host: true` resolves to an **undefined** listen host, which Node binds to
+the unspecified **IPv6** address `::`. In a sandbox where `localhost` is IPv4,
+the poll cannot reach an IPv6-only listener and times out after 5 minutes.
+Binding `0.0.0.0` binds IPv4 `INADDR_ANY` (including `127.0.0.1`), so
+`http://localhost:5173/` is reachable, matching the API. Do **not** revert either
+`host` back to `true`.
 
 ### No database or .NET setup required
 
@@ -121,7 +148,8 @@ necessarily a wiring defect.
   errors and the script's early-exit check surfaces it via the API logs.
 - **Health-poll target:** The action polls the **frontend**, not the API. Keep
   `startCommand` pointed at `scripts/start-smoke.sh`; pointing it directly at
-  `pnpm --filter @acme/web preview` would let the frontend come up before the API.
+  `pnpm --filter @acme/web exec vite preview` would let the frontend come up
+  before the API.
 - **Missing build output:** `vite preview` serves `apps/web/dist/`, so the build
   phase (`pnpm build`) must run before start. The start script guards against a
   missing `apps/web/dist/index.html` and exits non-zero with a clear message
