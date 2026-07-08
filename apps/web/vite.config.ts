@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: true, // bind 0.0.0.0 so the sandbox/action can reach the dev server
+    host: "0.0.0.0", // bind explicit IPv4 so localhost/127.0.0.1 is reachable over IPv4 (host: true resolves to an IPv6 :: bind)
     port: 5173,
     strictPort: true, // fail fast if 5173 is taken rather than silently using another port
     allowedHosts: true, // Vite 6 host-check: allow any Host header (localhost + sandbox network hostnames/IPs) so the smoke-test health poll on http://localhost:5173/ is not 403-blocked
@@ -20,7 +20,7 @@ export default defineConfig({
   preview: {
     // `vite preview` serves the built apps/web/dist/ and is the authoritative smoke target
     // matching baseUrl http://localhost:5173/ in lore.yml.
-    host: true,
+    host: "0.0.0.0", // bind explicit IPv4 so the health poll on http://localhost:5173/ reaches the loopback (host: true binds IPv6 ::)
     port: 5173,
     strictPort: true,
     allowedHosts: true, // parity with dev server: don't 403-block host-checked requests
