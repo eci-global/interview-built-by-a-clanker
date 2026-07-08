@@ -41,21 +41,22 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 
-echo "[start-smoke] Starting web (@acme/web) preview in the foreground..."
-# Serve the already-built static frontend with `vite preview`. The build phase
-# (`pnpm build`) must have produced apps/web/dist/. Preview is a plain static
-# server that reliably answers the health poll with HTTP 200 and serves the SPA.
+echo "[start-smoke] Starting web (static server) in the background..."
+# Serve the already-built static frontend with a dependency-free Node static
+# server (scripts/serve-web.mjs). The build phase (`pnpm build`) must have
+# produced apps/web/dist/. Unlike Vite's preview server, this server performs no
+# Host-header / DNS-rebinding checks, so http://localhost:5173/ reliably answers
+# the harness health poll with HTTP 200 and serves the SPA (with index.html
+# fallback for client-side routes like /personas/p-001).
 if [ ! -f "apps/web/dist/index.html" ]; then
   echo "[start-smoke] ERROR: apps/web/dist/index.html is missing." >&2
   echo "[start-smoke] The build phase must run before start (pnpm build produces apps/web/dist/)." >&2
   exit 1
 fi
 
-# Invoke vite directly via `pnpm exec` instead of `pnpm run preview -- <flags>`.
-# The `pnpm run <script> -- <flags>` form forwards a literal `--` into the
-# script, so vite's CLI (cac) treats everything after it as unparsed overflow
-# args and silently drops --host/--port/--strictPort. Running vite directly
-# lets the flags actually apply (binding IPv4 0.0.0.0 so localhost is reachable).
-pnpm --filter @acme/web exec vite preview --host 0.0.0.0 --port 5173 --strictPort &
+# Run backgrounded with WEB_PID so the `trap cleanup EXIT` handler tears it down
+# (the harness kills this script's PID; `wait` keeps it in the foreground while
+# still allowing the trap to fire).
+node scripts/serve-web.mjs &
 WEB_PID=$!
 wait "$WEB_PID"
