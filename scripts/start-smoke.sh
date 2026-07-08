@@ -59,4 +59,35 @@ fi
 # still allowing the trap to fire).
 node scripts/serve-web.mjs &
 WEB_PID=$!
+
+# Self-poll the web server from this script's OWN shell context before handing
+# off to the harness's health poll. This mirrors the API self-poll above and is
+# a diagnosis aid: it definitively distinguishes a serving/code defect (the
+# script itself cannot reach http://localhost:5173/) from an action-context /
+# environment reachability problem (the script CAN reach it, but the harness's
+# separate `curl -sf http://localhost:5173/` poll cannot). Either way, a failure
+# here fails fast with the web logs instead of a silent 5-minute timeout.
+WEB_HEALTH_URL="http://localhost:5173/"
+echo "[start-smoke] Waiting for web health at $WEB_HEALTH_URL ..."
+for attempt in $(seq 1 30); do
+  if curl -sf "$WEB_HEALTH_URL" >/dev/null 2>&1; then
+    echo "[start-smoke] Web is healthy (after $attempt attempts). This shell can reach http://localhost:5173/."
+    break
+  fi
+  if ! kill -0 "$WEB_PID" 2>/dev/null; then
+    echo "[start-smoke] Web process exited early." >&2
+    exit 1
+  fi
+  if [ "$attempt" -eq 30 ]; then
+    # The web server is still up (kill -0 above did not exit) but this shell
+    # could not reach it within the window. Surface it loudly to aid triage,
+    # but keep serving so the harness poll can still try from its own context.
+    echo "[start-smoke] WARNING: web did not answer this shell's poll within 60s," >&2
+    echo "[start-smoke] yet the serve-web process is still running (see its logs above)." >&2
+    echo "[start-smoke] This points at an environment/network reachability issue on port 5173," >&2
+    echo "[start-smoke] not a serving defect. Continuing to serve for the harness poll." >&2
+  fi
+  sleep 2
+done
+
 wait "$WEB_PID"

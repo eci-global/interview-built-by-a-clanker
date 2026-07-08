@@ -47,12 +47,28 @@ Additional parameters:
    If the API exits early or never becomes healthy, the script prints the API
    logs and exits non-zero so the action fails fast.
 3. Once the API is healthy, launches a **middleware-free Node static server**
-   ([`scripts/serve-web.mjs`](../scripts/serve-web.mjs)) in the background (and
-   `wait`s on it), serving the built static output in `apps/web/dist/`. This
-   keeps the process alive for the action's health poll and for browsing. A
-   guard fails fast with a clear message if `apps/web/dist/index.html` is
-   missing (i.e. the build phase did not run), instead of a silent 5-minute
-   timeout.
+   ([`scripts/serve-web.mjs`](../scripts/serve-web.mjs)) in the background,
+   serving the built static output in `apps/web/dist/`. It then **self-polls**
+   `http://localhost:5173/` from the script's own shell (mirroring the API
+   self-poll) before `wait`ing on the server. This keeps the process alive for
+   the action's health poll and for browsing. A guard fails fast with a clear
+   message if `apps/web/dist/index.html` is missing (i.e. the build phase did
+   not run), instead of a silent 5-minute timeout.
+
+   **Why self-poll the web server?** The self-poll is a diagnosis aid, not a
+   fix. It definitively distinguishes two otherwise-indistinguishable failure
+   modes when the action reports `AppHealthTimeoutError` (`App failed to become
+   healthy within 5 minutes`):
+
+   - If the script's own `curl -sf http://localhost:5173/` also fails while the
+     `serve-web` process is still up, the fault is a **serving/code defect** in
+     `serve-web.mjs` — surfaced immediately with the web logs rather than a
+     silent 5-minute timeout in the action.
+   - If the script's self-poll **succeeds** (the same shell that reached the API
+     over IPv4 loopback also reaches `5173`) but the action's separate poll
+     still times out, the fault is an **environment/network reachability**
+     condition on port `5173` in the action's poll context — not a repository
+     code defect. The script keeps serving so the harness poll can still try.
 
    **Why not `vite preview`?** The smoke target used to be Vite's `preview`
    server, but it proved unreliable for the harness poll on this project's
