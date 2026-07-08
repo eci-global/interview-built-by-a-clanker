@@ -312,6 +312,102 @@ same way it already reaches the (passing) `0.0.0.0:3001` API. The wiring here
 matches the spec/blueprint, and `coverage.json` marks the acceptance criteria as
 covered.
 
+## Optional defensive diagnostic hardening (candidate — not applied by default)
+
+This section **records** a candidate, diagnosis-only hardening for the smoke
+path so that it is available if — and only if — new evidence points to a
+code-addressable cause of an `AppHealthTimeoutError` on `http://localhost:5173/`.
+It is written up here deliberately so the reasoning, risks, caveats, and order
+of operations are preserved without being applied speculatively. Per the
+root-cause determination above, **no code change is warranted on the current
+evidence**, and the items below must **not** be applied unless the "when to
+apply" trigger is met.
+
+> The 0.0.0.0 bind in `scripts/serve-web.mjs` is **out of scope** for any of
+> these candidates. It must be preserved exactly as-is. Binding IPv4
+> `INADDR_ANY` (`0.0.0.0`) is what makes `http://localhost:5173/` reachable over
+> the IPv4 loopback that the (passing) API poll proves is in use. Changing
+> `HOST` to an unspecified/IPv6 host would break the *proven* reachability path
+> and is explicitly warned against in the caveats above. None of the candidate
+> changes touch `HOST`.
+
+### Candidate files
+
+| Full path                  | Role                                   | In candidate scope?                                   |
+| -------------------------- | -------------------------------------- | ----------------------------------------------------- |
+| `scripts/start-smoke.sh`   | Start orchestration                    | Yes — the self-poll diagnostic lives here.            |
+| `scripts/serve-web.mjs`    | Middleware-free Node static server     | No behavioral change; **`HOST = "0.0.0.0"` preserved**. |
+| `lore.yml`                 | Manifest (`baseUrl` / `healthPath`)    | No change; the poll target stays `http://localhost:5173/`. |
+
+### Candidate change: self-poll `http://localhost:5173/` from the start script
+
+After launching `node scripts/serve-web.mjs` in the background, the start script
+polls `http://localhost:5173/` from its **own** shell context (mirroring the
+existing API self-poll of `http://localhost:3001/health`) *before* handing off
+to the harness's health poll. This does **not** "fix" reachability — it is a
+diagnosis aid that fails fast with the web logs and definitively distinguishes
+two otherwise-indistinguishable failure modes:
+
+- **Self-poll fails while `serve-web` is still up** ⇒ a **serving/code defect**
+  in `serve-web.mjs`, surfaced immediately (with logs) instead of a silent
+  5-minute timeout in the action.
+- **Self-poll succeeds but the harness poll still times out** ⇒ an
+  **environment/network reachability** condition on port `5173` in the action's
+  poll context — not a repository code defect. The script keeps serving so the
+  harness poll can still try from its own context.
+
+> **Status.** As of this document, the self-poll described here is already
+> present in `scripts/start-smoke.sh` (see the `WEB_HEALTH_URL` loop and the
+> "Start ordering" section). This section preserves the *rationale, risks, and
+> order of operations* as a standalone record; treat it as the canonical
+> write-up of the diagnostic, not as a request to re-apply it.
+
+### Risks and caveats
+
+- **It diagnoses; it does not fix.** The self-poll cannot make an unreachable
+  port reachable. If the underlying condition is environmental, the harness poll
+  will still time out — the self-poll only tells you *which* class of fault you
+  are in. Treating a green self-poll as "the smoke test passes" would be a
+  misread.
+- **Risk of masking the real issue.** Any start-script logic that keeps the
+  process alive after a self-poll failure (as the current implementation does,
+  to let the harness try) must be careful not to *swallow* the signal. The
+  candidate keeps serving **and** logs loudly (`WARNING`) so triage still has
+  the evidence; it does not silently succeed.
+- **Bounded, non-blocking window.** The self-poll uses a bounded retry loop
+  (30 × 2s = 60s) so it cannot itself cause a hang; on the `kill -0` check it
+  fails fast if the server process died, and otherwise it logs and continues.
+- **Do not change the bind or the port.** Changing `serve-web.mjs`'s `HOST`
+  away from `0.0.0.0`, or pointing `lore.yml`'s `baseUrl`/`healthPath` at a
+  different origin, would diverge from the manifest and break the proven IPv4
+  path. These are explicitly **excluded** from the candidate.
+
+### When to apply (trigger)
+
+Apply/keep the self-poll diagnostic only when further evidence points to a
+code-addressable cause, for example:
+
+- logs from the action's **own** poll context, or
+- confirmation that `3001` was **also** unreachable to the action (which would
+  break the API-vs-web symmetry and reopen a code-level hypothesis).
+
+Absent such evidence, the root-cause determination stands: the condition is
+environmental and no code change is warranted.
+
+### Order of operations
+
+1. **Diagnosis-only change first.** Ensure the self-poll of
+   `http://localhost:5173/` is present in `scripts/start-smoke.sh` (mirroring
+   the API self-poll). Do not touch `serve-web.mjs`'s `HOST` or `lore.yml`.
+2. **Re-run and inspect.** Run the smoke lifecycle and read the start log:
+   - Did the script's own `5173` self-poll succeed?
+   - Was `serve-web` still up at timeout (no `EADDRINUSE`, no early exit)?
+3. **Decide only then.** If the self-poll **fails** while the server is up, pursue
+   a real fix in `serve-web.mjs` (the self-poll will have surfaced the failing
+   path with logs). If the self-poll **succeeds** but the harness still times
+   out, escalate the environment/network condition (see "Recommended action"
+   above) — do **not** make speculative code changes.
+
 ## Troubleshooting
 
 - **Frozen-lockfile error:** `--frozen-lockfile` fails if `pnpm-lock.yaml` is out
