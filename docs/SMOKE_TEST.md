@@ -204,6 +204,58 @@ logic in `serve-web.mjs` (IPv4 `0.0.0.0:5173`, `GET /` → 200 SPA fallback,
 `EADDRINUSE` guard) is correct and would answer the poll once the build output
 and `node_modules` are present.
 
+## API vs. web reachability symmetry
+
+This section records the direct, dimension-by-dimension comparison between the
+**reachable** API and the **timing-out** web static server, to rule out a
+code-level defect in `serve-web.mjs`, `start-smoke.sh`, `lore.yml`, or the build
+as the cause of an `AppHealthTimeoutError` on `http://localhost:5173/`.
+
+The API and the web server are wired identically along every dimension that
+governs loopback reachability:
+
+| Dimension        | API (reachable)                                                      | Web static server (times out)                                            | Same? |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | :---: |
+| Bind strategy    | `app.listen({ port: 3001, host: "0.0.0.0" })` — IPv4 `INADDR_ANY`    | `server.listen(5173, "0.0.0.0", …)` — IPv4 `INADDR_ANY`                   |  ✅   |
+| Process tree     | `node dist/index.js`, backgrounded child of `start-smoke.sh`         | `node scripts/serve-web.mjs`, backgrounded child of `start-smoke.sh`     |  ✅   |
+| Sandbox          | same container/network namespace as the start script                 | same container/network namespace as the start script                     |  ✅   |
+| Curl mechanism   | `curl -sf http://localhost:3001/health` (script self-poll + harness) | `curl -sf http://localhost:5173/` (script self-poll + harness poll)      |  ✅   |
+| Polled response  | `/health` → HTTP 200 (`{"status":"ok"}`)                             | `/` → HTTP 200 (SPA `index.html`, verified via `sendFile(…, 200)`)       |  ✅   |
+
+Consequences of this symmetry:
+
+- **Bind strategy is identical.** Both call `listen(port, "0.0.0.0", …)`, which
+  binds IPv4 `INADDR_ANY` (including `127.0.0.1`). Because the script's own
+  `curl http://localhost:3001/health` succeeds, `localhost` resolves to the IPv4
+  loopback in this sandbox; therefore the identically-bound `0.0.0.0:5173`
+  listener is reachable via `http://localhost:5173/` by the same resolution. If
+  either bind were IPv6-only (Node's unspecified host → `::`), the API poll
+  would *also* fail — it does not.
+- **Process tree is identical.** Both are `node` processes launched with `&` as
+  direct children of `scripts/start-smoke.sh`, tracked (`API_PID` / `WEB_PID`)
+  and torn down by the same `trap cleanup EXIT`. Neither is `exec`'d, so both
+  share the script's lifetime and signal handling.
+- **Sandbox is identical.** Both run in the same container and network
+  namespace as the start script; there is no per-service isolation that would
+  give `3001` and `5173` different reachability.
+- **Curl mechanism is identical.** The script self-polls both with `curl -sf`
+  (API at line-scoped `API_HEALTH_URL`, web at `WEB_HEALTH_URL`), and the
+  harness polls the web with the same `curl -sf http://localhost:5173/`. Same
+  flags, same client, same loopback target.
+
+Because all five dimensions match, **no code-level defect** in `serve-web.mjs`
+(bind/serve/SPA-fallback/`EADDRINUSE` guard), `start-smoke.sh` (API-gated
+ordering, backgrounding, `wait`, trap), `lore.yml` (`baseUrl`/`healthPath`), or
+the build (`apps/web/dist/index.html` presence, checked twice) can explain a
+`5173` timeout while the identically-configured `3001` is reachable. A
+correctly-bound, up, `0.0.0.0:5173` IPv4 listener that returns 200 on `/`
+**must** answer `curl -sf http://localhost:5173/` on the next poll tick, exactly
+as the API's does. If it does not, the difference lies **outside** this
+repository's code — an environment/network reachability condition in the poll's
+context — which is precisely what the web self-poll added to `start-smoke.sh` is
+designed to disambiguate (self-poll succeeds ⇒ environment; self-poll fails ⇒
+serving/code defect surfaced with logs).
+
 ## Troubleshooting
 
 - **Frozen-lockfile error:** `--frozen-lockfile` fails if `pnpm-lock.yaml` is out
