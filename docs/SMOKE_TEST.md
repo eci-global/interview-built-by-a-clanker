@@ -21,13 +21,14 @@ Additional parameters:
 
 - **`workingDir: .`** — all root scripts run from the monorepo root.
 - **`baseUrl: http://localhost:5173`** — this **overrides** the Lore reference
-  default (port 3000). `5173` is the Vite preview server origin and the
+  default (port 3000). `5173` is the static server origin and the
   CORS-allowed origin for the API.
 - **`healthPath: /`** — the action polls `curl -sf {baseUrl}{healthPath}`, i.e.
-  `http://localhost:5173/`, against the foregrounded process (`vite preview`).
-  `/` returns the built SPA shell (HTTP 200). The API's own `/health` is gated
-  inside the start script, **not** via the action's poll (the preview server
-  does not serve `/health`).
+  `http://localhost:5173/`, against the foregrounded process (the
+  middleware-free Node static server, `scripts/serve-web.mjs`). `/` returns the
+  built SPA shell (HTTP 200). The API's own `/health` is gated inside the start
+  script, **not** via the action's poll (the static server does not serve
+  `/health`).
 - **`browsePaths`** — only the two public pages that render meaningfully without
   authentication:
   - `/` — the Browse page.
@@ -45,27 +46,33 @@ Additional parameters:
    (`{"status":"ok"}`), with a bounded retry loop (60 attempts × 2s = 2 minutes).
    If the API exits early or never becomes healthy, the script prints the API
    logs and exits non-zero so the action fails fast.
-3. Once the API is healthy, launches the Vite **preview** server in the
-   **foreground** (`pnpm --filter @acme/web exec vite preview --host 0.0.0.0
-   --port 5173 --strictPort`), serving the built static output in
-   `apps/web/dist/`. This keeps the process alive for the action's health poll
-   and for browsing. A guard fails fast with a clear message if
-   `apps/web/dist/index.html` is missing (i.e. the build phase did not run),
-   instead of a silent 5-minute timeout. Because `vite preview` is a plain static
-   file server (no dev transform pipeline or host-check middleware), it
-   deterministically returns HTTP 200 for `/`.
+3. Once the API is healthy, launches a **middleware-free Node static server**
+   ([`scripts/serve-web.mjs`](../scripts/serve-web.mjs)) in the background (and
+   `wait`s on it), serving the built static output in `apps/web/dist/`. This
+   keeps the process alive for the action's health poll and for browsing. A
+   guard fails fast with a clear message if `apps/web/dist/index.html` is
+   missing (i.e. the build phase did not run), instead of a silent 5-minute
+   timeout.
 
-   The invocation runs `vite` directly via `pnpm --filter @acme/web exec` rather
-   than `pnpm --filter @acme/web preview -- <flags>`. The `pnpm run <script> --
-   <flags>` form forwards a literal `--` into the script, so vite's CLI (cac)
-   treats everything after it as unparsed overflow args and **silently drops**
-   `--host`/`--port`/`--strictPort`. Running `vite` directly makes those flags
-   apply. Even so, the authoritative bind comes from `apps/web/vite.config.ts`,
-   whose `preview.host` is set to an explicit IPv4 `"0.0.0.0"` (see the loopback
-   bind caveat below).
+   **Why not `vite preview`?** The smoke target used to be Vite's `preview`
+   server, but it proved unreliable for the harness poll on this project's
+   pinned Vite (6.4.x). Vite's preview server runs a **Host-header /
+   DNS-rebinding host-check middleware** that could reject `http://localhost:5173/`
+   even with `allowedHosts: true` configured, so `curl -sf http://localhost:5173/`
+   never returned HTTP 200 and the start step timed out after 5 minutes — even
+   though the identically-bound API poll succeeded. Rather than keep fighting
+   Vite's preview host-check, the smoke path now serves `apps/web/dist/` with a
+   tiny dependency-free Node static server (`node:http` + `node:fs` only, so
+   `pnpm install --frozen-lockfile` stays valid). It performs **no** Host-header
+   check, binds explicitly to IPv4 `0.0.0.0:5173` (matching the API's
+   proven-reachable bind), and serves `index.html` as a SPA fallback so both
+   `/` and client-side routes like `/personas/p-001` return HTTP 200.
 
-A `trap cleanup EXIT` kills both the background API and the foregrounded preview
-process (tracked via `WEB_PID`) when the script terminates, avoiding orphaned
+   The `server`/`preview` blocks in `apps/web/vite.config.ts` are left in place
+   for local development but are **no longer on the smoke critical path**.
+
+A `trap cleanup EXIT` kills both the background API and the backgrounded static
+server (tracked via `WEB_PID`) when the script terminates, avoiding orphaned
 processes across runs. The web server is started in the background and `wait`ed
 on (not `exec`'d), so the trap still fires on exit.
 
@@ -76,22 +83,22 @@ browse steps would show fetch failures.
 
 ## Caveats — how this project differs from the Lore reference stack
 
-### Vite binds an explicit IPv4 address (loopback reachability)
+### The static server binds an explicit IPv4 address (loopback reachability)
 
-Both the dev `server` and the `preview` server in
-[`apps/web/vite.config.ts`](../apps/web/vite.config.ts) bind
-`host: "0.0.0.0"` (an explicit IPv4 address) rather than `host: true`. This
-matters because the action's health poll runs `curl -sf http://localhost:5173/`,
-and in the sandbox `localhost` resolves to the IPv4 loopback `127.0.0.1` (the
-API's `curl http://localhost:3001/health` succeeds against its own
-`host: "0.0.0.0"` IPv4 bind).
+The Node static server ([`scripts/serve-web.mjs`](../scripts/serve-web.mjs))
+binds `host: "0.0.0.0"` (an explicit IPv4 address) rather than an undefined /
+IPv6 host. This matters because the action's health poll runs
+`curl -sf http://localhost:5173/`, and in the sandbox `localhost` resolves to
+the IPv4 loopback `127.0.0.1` (the API's `curl http://localhost:3001/health`
+succeeds against its own `host: "0.0.0.0"` IPv4 bind).
 
-Vite's `host: true` resolves to an **undefined** listen host, which Node binds to
-the unspecified **IPv6** address `::`. In a sandbox where `localhost` is IPv4,
-the poll cannot reach an IPv6-only listener and times out after 5 minutes.
-Binding `0.0.0.0` binds IPv4 `INADDR_ANY` (including `127.0.0.1`), so
-`http://localhost:5173/` is reachable, matching the API. Do **not** revert either
-`host` back to `true`.
+Binding to Node's unspecified host resolves to the IPv6 address `::`; in a
+sandbox where `localhost` is IPv4, the poll cannot reach an IPv6-only listener
+and times out. Binding `0.0.0.0` binds IPv4 `INADDR_ANY` (including
+`127.0.0.1`), so `http://localhost:5173/` is reachable, matching the API. Do
+**not** change `serve-web.mjs`'s `HOST` away from `0.0.0.0`. (The `server` and
+`preview` blocks in `apps/web/vite.config.ts` also bind `0.0.0.0` for local
+development, but they are no longer on the smoke critical path.)
 
 ### No database or .NET setup required
 
@@ -142,18 +149,19 @@ necessarily a wiring defect.
 - **Frozen-lockfile error:** `--frozen-lockfile` fails if `pnpm-lock.yaml` is out
   of sync with `package.json`. If a sandbox reports this, drop the flag and use
   plain `pnpm install`.
-- **Port conflicts:** Vite preview uses `strictPort: true`
-  (`apps/web/vite.config.ts` plus `--strictPort`), so it fails fast if `5173` is
-  occupied. The API has no equivalent guard; if `3001` is taken, the API start
-  errors and the script's early-exit check surfaces it via the API logs.
+- **Port conflicts:** The static server (`scripts/serve-web.mjs`) binds `5173`
+  and exits non-zero on an `EADDRINUSE` error (surfaced via its `server.on
+  ("error")` handler), so it fails fast if `5173` is occupied. The API has no
+  equivalent guard; if `3001` is taken, the API start errors and the script's
+  early-exit check surfaces it via the API logs.
 - **Health-poll target:** The action polls the **frontend**, not the API. Keep
   `startCommand` pointed at `scripts/start-smoke.sh`; pointing it directly at
-  `pnpm --filter @acme/web exec vite preview` would let the frontend come up
-  before the API.
-- **Missing build output:** `vite preview` serves `apps/web/dist/`, so the build
-  phase (`pnpm build`) must run before start. The start script guards against a
-  missing `apps/web/dist/index.html` and exits non-zero with a clear message
-  rather than timing out.
+  the static server (`node scripts/serve-web.mjs`) would let the frontend come
+  up before the API.
+- **Missing build output:** The static server serves `apps/web/dist/`, so the
+  build phase (`pnpm build`) must run before start. Both `serve-web.mjs` and the
+  start script guard against a missing `apps/web/dist/index.html` and exit
+  non-zero with a clear message rather than timing out.
 
 ## Agent lifecycle scripts
 
@@ -176,7 +184,7 @@ From the repository root:
 pnpm install --frozen-lockfile   # setup
 pnpm build                       # build: @acme/shared → @acme/api → @acme/web
 pnpm typecheck                   # verify
-bash scripts/start-smoke.sh      # start (API-gated, then vite preview in foreground)
+bash scripts/start-smoke.sh      # start (API-gated, then static server in foreground)
 ```
 
 Then, in another shell:
