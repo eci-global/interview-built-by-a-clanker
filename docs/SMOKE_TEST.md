@@ -21,14 +21,13 @@ Additional parameters:
 
 - **`workingDir: .`** — all root scripts run from the monorepo root.
 - **`baseUrl: http://localhost:5173`** — this **overrides** the Lore reference
-  default (port 3000). `5173` is the static server origin and the
+  default (port 3000). `5173` is the Vite dev server origin and the
   CORS-allowed origin for the API.
 - **`healthPath: /`** — the action polls `curl -sf {baseUrl}{healthPath}`, i.e.
-  `http://localhost:5173/`, against the foregrounded process (the
-  middleware-free Node static server, `scripts/serve-web.mjs`). `/` returns the
-  built SPA shell (HTTP 200). The API's own `/health` is gated inside the start
-  script, **not** via the action's poll (the static server does not serve
-  `/health`).
+  `http://localhost:5173/`, against the foregrounded process (the Vite dev
+  server started via `exec pnpm --filter @acme/web dev`). `/` returns the SPA
+  shell (HTTP 200). The API's own `/health` is gated inside the start script,
+  **not** via the action's poll (the Vite dev server does not serve `/health`).
 - **`browsePaths`** — only the two public pages that render meaningfully without
   authentication:
   - `/` — the Browse page.
@@ -46,51 +45,37 @@ Additional parameters:
    (`{"status":"ok"}`), with a bounded retry loop (60 attempts × 2s = 2 minutes).
    If the API exits early or never becomes healthy, the script prints the API
    logs and exits non-zero so the action fails fast.
-3. Once the API is healthy, launches a **middleware-free Node static server**
-   ([`scripts/serve-web.mjs`](../scripts/serve-web.mjs)) in the background,
-   serving the built static output in `apps/web/dist/`. It then **self-polls**
-   `http://localhost:5173/` from the script's own shell (mirroring the API
-   self-poll) before `wait`ing on the server. This keeps the process alive for
-   the action's health poll and for browsing. A guard fails fast with a clear
-   message if `apps/web/dist/index.html` is missing (i.e. the build phase did
-   not run), instead of a silent 5-minute timeout.
+3. Once the API is healthy, the script replaces itself with the **Vite dev
+   server** in the **foreground** via `exec pnpm --filter @acme/web dev --
+   --host 0.0.0.0 --port 5173`. Because `exec` replaces the shell process, the
+   harness-supervised PID *is* the long-lived HTTP server — there is no
+   backgrounded child that can be reaped between polls. The dev server binds
+   IPv4 `0.0.0.0:5173` and serves the SPA from source, so `GET /` (and
+   client-side routes like `/personas/p-001`) return HTTP 200 for the action's
+   health poll and for browsing.
 
-   **Why self-poll the web server?** The self-poll is a diagnosis aid, not a
-   fix. It definitively distinguishes two otherwise-indistinguishable failure
-   modes when the action reports `AppHealthTimeoutError` (`App failed to become
-   healthy within 5 minutes`):
+   **Why `exec` (foreground), not a backgrounded server?** Using `exec` makes
+   the health-poll target identical to the harness-supervised process. Signals
+   (e.g. the harness's SIGTERM to the script PID) propagate cleanly to Vite,
+   and the listener's lifetime is exactly the harness's expectation. A
+   backgrounded server (`node … & … wait`) is a separate process in the
+   script's tree that can be gracefully terminated by process-group teardown
+   right after a self-poll observed it — the exact "up during self-poll, gone
+   by the harness's next poll tick" race the `exec` model avoids.
 
-   - If the script's own `curl -sf http://localhost:5173/` also fails while the
-     `serve-web` process is still up, the fault is a **serving/code defect** in
-     `serve-web.mjs` — surfaced immediately with the web logs rather than a
-     silent 5-minute timeout in the action.
-   - If the script's self-poll **succeeds** (the same shell that reached the API
-     over IPv4 loopback also reaches `5173`) but the action's separate poll
-     still times out, the fault is an **environment/network reachability**
-     condition on port `5173` in the action's poll context — not a repository
-     code defect. The script keeps serving so the harness poll can still try.
+   **Why the Vite dev server, not `vite preview` or a custom static server?**
+   The blueprint prescribes the Vite **dev** server run in the foreground as
+   the health-poll target. Vite dev serves the SPA directly from source (no
+   prior `apps/web/dist/` static build required) and honours
+   `allowedHosts: true` from `apps/web/vite.config.ts`, so its host-check
+   middleware does not 403 the `http://localhost:5173/` poll. `strictPort: true`
+   pins the port to `5173` (matching `lore.yml`'s `baseUrl`) so it cannot drift.
 
-   **Why not `vite preview`?** The smoke target used to be Vite's `preview`
-   server, but it proved unreliable for the harness poll on this project's
-   pinned Vite (6.4.x). Vite's preview server runs a **Host-header /
-   DNS-rebinding host-check middleware** that could reject `http://localhost:5173/`
-   even with `allowedHosts: true` configured, so `curl -sf http://localhost:5173/`
-   never returned HTTP 200 and the start step timed out after 5 minutes — even
-   though the identically-bound API poll succeeded. Rather than keep fighting
-   Vite's preview host-check, the smoke path now serves `apps/web/dist/` with a
-   tiny dependency-free Node static server (`node:http` + `node:fs` only, so
-   `pnpm install --frozen-lockfile` stays valid). It performs **no** Host-header
-   check, binds explicitly to IPv4 `0.0.0.0:5173` (matching the API's
-   proven-reachable bind), and serves `index.html` as a SPA fallback so both
-   `/` and client-side routes like `/personas/p-001` return HTTP 200.
-
-   The `server`/`preview` blocks in `apps/web/vite.config.ts` are left in place
-   for local development but are **no longer on the smoke critical path**.
-
-A `trap cleanup EXIT` kills both the background API and the backgrounded static
-server (tracked via `WEB_PID`) when the script terminates, avoiding orphaned
-processes across runs. The web server is started in the background and `wait`ed
-on (not `exec`'d), so the trap still fires on exit.
+A `trap cleanup EXIT` reaps the background API on the pre-`exec` failure paths
+(API never becomes healthy, etc.). After `exec` replaces the shell with Vite,
+that trap no longer fires; the API is then a sibling reaped by the harness's
+PID / process-group teardown of the whole tree. This matches the blueprint's
+accepted design and keeps the supervised PID identical to the live web server.
 
 This ordering matters because the frontend hardcodes `API_BASE =
 "http://localhost:3001"` (`apps/web/src/lib/api.ts`) and the API's CORS is locked
@@ -99,11 +84,12 @@ browse steps would show fetch failures.
 
 ## Caveats — how this project differs from the Lore reference stack
 
-### The static server binds an explicit IPv4 address (loopback reachability)
+### The Vite dev server binds an explicit IPv4 address (loopback reachability)
 
-The Node static server ([`scripts/serve-web.mjs`](../scripts/serve-web.mjs))
-binds `host: "0.0.0.0"` (an explicit IPv4 address) rather than an undefined /
-IPv6 host. This matters because the action's health poll runs
+The Vite dev server binds `host: "0.0.0.0"` (an explicit IPv4 address) via the
+`server` block in [`apps/web/vite.config.ts`](../apps/web/vite.config.ts) (the
+`--host 0.0.0.0` pass-through in the start script is redundant but harmless).
+This matters because the action's health poll runs
 `curl -sf http://localhost:5173/`, and in the sandbox `localhost` resolves to
 the IPv4 loopback `127.0.0.1` (the API's `curl http://localhost:3001/health`
 succeeds against its own `host: "0.0.0.0"` IPv4 bind).
@@ -111,10 +97,10 @@ succeeds against its own `host: "0.0.0.0"` IPv4 bind).
 Binding to Node's unspecified host resolves to the IPv6 address `::`; in a
 sandbox where `localhost` is IPv4, the poll cannot reach an IPv6-only listener
 and times out. Binding `0.0.0.0` binds IPv4 `INADDR_ANY` (including
-`127.0.0.1`), so `http://localhost:5173/` is reachable, matching the API. Do
-**not** change `serve-web.mjs`'s `HOST` away from `0.0.0.0`. (The `server` and
-`preview` blocks in `apps/web/vite.config.ts` also bind `0.0.0.0` for local
-development, but they are no longer on the smoke critical path.)
+`127.0.0.1`), so `http://localhost:5173/` is reachable, matching the API. Keep
+the `server` block's `host: "0.0.0.0"`, `port: 5173`, `strictPort: true`, and
+`allowedHosts: true` — these bind the dev server reachably, pin the port to
+`5173`, and stop Vite's host-check middleware from 403'ing the poll.
 
 ### No database or .NET setup required
 
@@ -160,272 +146,23 @@ response omitting `username`).
 A failing build/verify may therefore be **expected** during assessment and is not
 necessarily a wiring defect.
 
-## Verification finding (serving & bind correctness)
-
-A read-only verification of the serving path against both the code and the
-actual lifecycle log confirms the following.
-
-**Code is correct.** In [`scripts/serve-web.mjs`](../scripts/serve-web.mjs):
-
-- The server binds **IPv4 `0.0.0.0:5173`** (`const HOST = "0.0.0.0"; const PORT
-  = 5173;` → `server.listen(PORT, HOST, …)`), matching the API's proven-reachable
-  `app.listen({ port: 3001, host: "0.0.0.0" })` in `apps/api/src/index.ts`.
-- `GET /` resolves to the dist root (a directory, not a file), so `statFile`
-  returns `null` and the request falls through to the **SPA fallback**, which
-  serves `index.html` with **HTTP 200** (`sendFile(res, INDEX_FILE, indexStat,
-  200)`). Client-side routes like `/personas/p-001` follow the same 200 path.
-- `dist/index.html` presence is checked **before** `listen()` (and again in
-  `start-smoke.sh` before launching), exiting non-zero with a clear message if
-  missing — no silent timeout.
-- `EADDRINUSE` (or any listen error) is caught by `server.on("error")` →
-  `process.exit(1)`, so a port conflict fails fast rather than hanging.
-
-**What the actual run log shows (environment limitation, not a code defect).**
-The lifecycle log for the failed sandbox shows the failure occurred **upstream
-of the web server**, at the API self-poll stage:
-
-```
-[start-smoke] Starting API (@acme/api) in background...
-[start-smoke] Waiting for API health at http://localhost:3001/health ...
-[start-smoke] API process exited early. Logs:
-  Error: Cannot find module '/workspace/apps/api/dist/index.js'  (MODULE_NOT_FOUND)
-  WARN  Local package.json exists, but node_modules missing, did you mean to install?
-[start-smoke] Cleaning up...
-```
-
-Because the API never became healthy, `start-smoke.sh` exited at the API gate
-and **never reached** the web phase — so in this particular failed sandbox the
-serve-web self-poll never ran, `dist/index.html` was never re-checked, and
-`5173` was never bound. The root cause is that the **setup/build phases did not
-complete** in that sandbox (`node_modules` missing → `apps/api/dist/index.js`
-absent), which is the documented "app stack FAILED to start" environment
-limitation, not a serving/bind defect in this repository. The serving and bind
-logic in `serve-web.mjs` (IPv4 `0.0.0.0:5173`, `GET /` → 200 SPA fallback,
-`EADDRINUSE` guard) is correct and would answer the poll once the build output
-and `node_modules` are present.
-
-## API vs. web reachability symmetry
-
-This section records the direct, dimension-by-dimension comparison between the
-**reachable** API and the **timing-out** web static server, to rule out a
-code-level defect in `serve-web.mjs`, `start-smoke.sh`, `lore.yml`, or the build
-as the cause of an `AppHealthTimeoutError` on `http://localhost:5173/`.
-
-The API and the web server are wired identically along every dimension that
-governs loopback reachability:
-
-| Dimension        | API (reachable)                                                      | Web static server (times out)                                            | Same? |
-| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ | :---: |
-| Bind strategy    | `app.listen({ port: 3001, host: "0.0.0.0" })` — IPv4 `INADDR_ANY`    | `server.listen(5173, "0.0.0.0", …)` — IPv4 `INADDR_ANY`                   |  ✅   |
-| Process tree     | `node dist/index.js`, backgrounded child of `start-smoke.sh`         | `node scripts/serve-web.mjs`, backgrounded child of `start-smoke.sh`     |  ✅   |
-| Sandbox          | same container/network namespace as the start script                 | same container/network namespace as the start script                     |  ✅   |
-| Curl mechanism   | `curl -sf http://localhost:3001/health` (script self-poll + harness) | `curl -sf http://localhost:5173/` (script self-poll + harness poll)      |  ✅   |
-| Polled response  | `/health` → HTTP 200 (`{"status":"ok"}`)                             | `/` → HTTP 200 (SPA `index.html`, verified via `sendFile(…, 200)`)       |  ✅   |
-
-Consequences of this symmetry:
-
-- **Bind strategy is identical.** Both call `listen(port, "0.0.0.0", …)`, which
-  binds IPv4 `INADDR_ANY` (including `127.0.0.1`). Because the script's own
-  `curl http://localhost:3001/health` succeeds, `localhost` resolves to the IPv4
-  loopback in this sandbox; therefore the identically-bound `0.0.0.0:5173`
-  listener is reachable via `http://localhost:5173/` by the same resolution. If
-  either bind were IPv6-only (Node's unspecified host → `::`), the API poll
-  would *also* fail — it does not.
-- **Process tree is identical.** Both are `node` processes launched with `&` as
-  direct children of `scripts/start-smoke.sh`, tracked (`API_PID` / `WEB_PID`)
-  and torn down by the same `trap cleanup EXIT`. Neither is `exec`'d, so both
-  share the script's lifetime and signal handling.
-- **Sandbox is identical.** Both run in the same container and network
-  namespace as the start script; there is no per-service isolation that would
-  give `3001` and `5173` different reachability.
-- **Curl mechanism is identical.** The script self-polls both with `curl -sf`
-  (API at line-scoped `API_HEALTH_URL`, web at `WEB_HEALTH_URL`), and the
-  harness polls the web with the same `curl -sf http://localhost:5173/`. Same
-  flags, same client, same loopback target.
-
-Because all five dimensions match, **no code-level defect** in `serve-web.mjs`
-(bind/serve/SPA-fallback/`EADDRINUSE` guard), `start-smoke.sh` (API-gated
-ordering, backgrounding, `wait`, trap), `lore.yml` (`baseUrl`/`healthPath`), or
-the build (`apps/web/dist/index.html` presence, checked twice) can explain a
-`5173` timeout while the identically-configured `3001` is reachable. A
-correctly-bound, up, `0.0.0.0:5173` IPv4 listener that returns 200 on `/`
-**must** answer `curl -sf http://localhost:5173/` on the next poll tick, exactly
-as the API's does. If it does not, the difference lies **outside** this
-repository's code — an environment/network reachability condition in the poll's
-context — which is precisely what the web self-poll added to `start-smoke.sh` is
-designed to disambiguate (self-poll succeeds ⇒ environment; self-poll fails ⇒
-serving/code defect surfaced with logs).
-
-## Root-cause determination: environmental, not code-fixable
-
-Combining the serving/bind verification and the API-vs-web reachability
-symmetry above yields a single, defensible determination for an
-`AppHealthTimeoutError` (`App failed to become healthy within 5 minutes`) on
-`http://localhost:5173/`:
-
-**This is an environment/infrastructure reachability condition on port `5173`
-during the action's health-poll window — not a repository code defect.**
-
-The reasoning is exhaustive and rests on the proven IPv4 symmetry with the
-working API:
-
-1. **The serving code is correct.** `scripts/serve-web.mjs` binds IPv4
-   `0.0.0.0:5173`, checks `apps/web/dist/index.html` before `listen()`, returns
-   **HTTP 200** for `GET /` via the SPA fallback, and fails fast on
-   `EADDRINUSE`. Every code path that could make `/` not answer 200 is
-   contradicted by direct code inspection.
-2. **The orchestration is correct.** `scripts/start-smoke.sh` gates the web
-   server on a healthy API, backgrounds `node scripts/serve-web.mjs`, self-polls
-   `http://localhost:5173/`, and keeps serving under a `trap cleanup EXIT`. The
-   manifest (`lore.yml`) points the poll at `baseUrl + healthPath` =
-   `http://localhost:5173/`, exactly what the server answers.
-3. **The API proves loopback + IPv4 + this bind strategy work in the sandbox.**
-   The API and web server are identical along all five reachability dimensions
-   (bind strategy, process tree, sandbox/network namespace, `curl -sf`
-   mechanism, polled `/`→200 response). The API's `curl http://localhost:3001/health`
-   succeeds, proving `localhost` resolves to IPv4 loopback here and that a
-   `0.0.0.0` listener is reachable by that path. An identically-bound
-   `0.0.0.0:5173` listener that returns 200 on `/` **must** answer the next
-   poll tick the same way.
-4. **No asymmetry remains inside this repo.** Because every code-addressable
-   dimension matches the reachable API, there is no code path in
-   `serve-web.mjs`, `start-smoke.sh`, `lore.yml`, the API, or the web build that
-   can make `5173` unreachable while `3001` is reachable. The difference, if
-   any, lies **outside** this repository — in the network context of the
-   action's poll (e.g. the poll ran in a different network context than the
-   backgrounded start command, a per-port restriction on `5173`, or a transient
-   connection failure during the poll window).
-
-**Consequently, no code change to this repository is warranted, and making one
-would be speculative and potentially harmful.** In particular, changing
-`serve-web.mjs`'s `HOST` away from `0.0.0.0` (e.g. to an IPv6-only or
-unspecified host) would break the *proven* IPv4 reachability path and is
-explicitly warned against above. The self-poll already added to
-`start-smoke.sh` is the correct, non-speculative disambiguation: if the
-script's own shell reaches `5173` but the harness poll times out, the fault is
-environmental by construction.
-
-**Recommended action:** escalate to a human to either (a) waive the affected
-criterion for this run, or (b) fix the validation environment so the health
-poll's `ctx.exec` context can reach a backgrounded `0.0.0.0:5173` listener the
-same way it already reaches the (passing) `0.0.0.0:3001` API. The wiring here
-matches the spec/blueprint, and `coverage.json` marks the acceptance criteria as
-covered.
-
-## Optional defensive diagnostic hardening (candidate — not applied by default)
-
-This section **records** a candidate, diagnosis-only hardening for the smoke
-path so that it is available if — and only if — new evidence points to a
-code-addressable cause of an `AppHealthTimeoutError` on `http://localhost:5173/`.
-It is written up here deliberately so the reasoning, risks, caveats, and order
-of operations are preserved without being applied speculatively. Per the
-root-cause determination above, **no code change is warranted on the current
-evidence**, and the items below must **not** be applied unless the "when to
-apply" trigger is met.
-
-> The 0.0.0.0 bind in `scripts/serve-web.mjs` is **out of scope** for any of
-> these candidates. It must be preserved exactly as-is. Binding IPv4
-> `INADDR_ANY` (`0.0.0.0`) is what makes `http://localhost:5173/` reachable over
-> the IPv4 loopback that the (passing) API poll proves is in use. Changing
-> `HOST` to an unspecified/IPv6 host would break the *proven* reachability path
-> and is explicitly warned against in the caveats above. None of the candidate
-> changes touch `HOST`.
-
-### Candidate files
-
-| Full path                  | Role                                   | In candidate scope?                                   |
-| -------------------------- | -------------------------------------- | ----------------------------------------------------- |
-| `scripts/start-smoke.sh`   | Start orchestration                    | Yes — the self-poll diagnostic lives here.            |
-| `scripts/serve-web.mjs`    | Middleware-free Node static server     | No behavioral change; **`HOST = "0.0.0.0"` preserved**. |
-| `lore.yml`                 | Manifest (`baseUrl` / `healthPath`)    | No change; the poll target stays `http://localhost:5173/`. |
-
-### Candidate change: self-poll `http://localhost:5173/` from the start script
-
-After launching `node scripts/serve-web.mjs` in the background, the start script
-polls `http://localhost:5173/` from its **own** shell context (mirroring the
-existing API self-poll of `http://localhost:3001/health`) *before* handing off
-to the harness's health poll. This does **not** "fix" reachability — it is a
-diagnosis aid that fails fast with the web logs and definitively distinguishes
-two otherwise-indistinguishable failure modes:
-
-- **Self-poll fails while `serve-web` is still up** ⇒ a **serving/code defect**
-  in `serve-web.mjs`, surfaced immediately (with logs) instead of a silent
-  5-minute timeout in the action.
-- **Self-poll succeeds but the harness poll still times out** ⇒ an
-  **environment/network reachability** condition on port `5173` in the action's
-  poll context — not a repository code defect. The script keeps serving so the
-  harness poll can still try from its own context.
-
-> **Status.** As of this document, the self-poll described here is already
-> present in `scripts/start-smoke.sh` (see the `WEB_HEALTH_URL` loop and the
-> "Start ordering" section). This section preserves the *rationale, risks, and
-> order of operations* as a standalone record; treat it as the canonical
-> write-up of the diagnostic, not as a request to re-apply it.
-
-### Risks and caveats
-
-- **It diagnoses; it does not fix.** The self-poll cannot make an unreachable
-  port reachable. If the underlying condition is environmental, the harness poll
-  will still time out — the self-poll only tells you *which* class of fault you
-  are in. Treating a green self-poll as "the smoke test passes" would be a
-  misread.
-- **Risk of masking the real issue.** Any start-script logic that keeps the
-  process alive after a self-poll failure (as the current implementation does,
-  to let the harness try) must be careful not to *swallow* the signal. The
-  candidate keeps serving **and** logs loudly (`WARNING`) so triage still has
-  the evidence; it does not silently succeed.
-- **Bounded, non-blocking window.** The self-poll uses a bounded retry loop
-  (30 × 2s = 60s) so it cannot itself cause a hang; on the `kill -0` check it
-  fails fast if the server process died, and otherwise it logs and continues.
-- **Do not change the bind or the port.** Changing `serve-web.mjs`'s `HOST`
-  away from `0.0.0.0`, or pointing `lore.yml`'s `baseUrl`/`healthPath` at a
-  different origin, would diverge from the manifest and break the proven IPv4
-  path. These are explicitly **excluded** from the candidate.
-
-### When to apply (trigger)
-
-Apply/keep the self-poll diagnostic only when further evidence points to a
-code-addressable cause, for example:
-
-- logs from the action's **own** poll context, or
-- confirmation that `3001` was **also** unreachable to the action (which would
-  break the API-vs-web symmetry and reopen a code-level hypothesis).
-
-Absent such evidence, the root-cause determination stands: the condition is
-environmental and no code change is warranted.
-
-### Order of operations
-
-1. **Diagnosis-only change first.** Ensure the self-poll of
-   `http://localhost:5173/` is present in `scripts/start-smoke.sh` (mirroring
-   the API self-poll). Do not touch `serve-web.mjs`'s `HOST` or `lore.yml`.
-2. **Re-run and inspect.** Run the smoke lifecycle and read the start log:
-   - Did the script's own `5173` self-poll succeed?
-   - Was `serve-web` still up at timeout (no `EADDRINUSE`, no early exit)?
-3. **Decide only then.** If the self-poll **fails** while the server is up, pursue
-   a real fix in `serve-web.mjs` (the self-poll will have surfaced the failing
-   path with logs). If the self-poll **succeeds** but the harness still times
-   out, escalate the environment/network condition (see "Recommended action"
-   above) — do **not** make speculative code changes.
-
 ## Troubleshooting
 
 - **Frozen-lockfile error:** `--frozen-lockfile` fails if `pnpm-lock.yaml` is out
   of sync with `package.json`. If a sandbox reports this, drop the flag and use
   plain `pnpm install`.
-- **Port conflicts:** The static server (`scripts/serve-web.mjs`) binds `5173`
-  and exits non-zero on an `EADDRINUSE` error (surfaced via its `server.on
-  ("error")` handler), so it fails fast if `5173` is occupied. The API has no
-  equivalent guard; if `3001` is taken, the API start errors and the script's
-  early-exit check surfaces it via the API logs.
+- **Port conflicts:** The Vite dev server binds `5173` with `strictPort: true`
+  (`apps/web/vite.config.ts`), so it fails fast if `5173` is occupied rather
+  than drifting to another port. The API has no equivalent guard; if `3001` is
+  taken, the API start errors and the script's early-exit check surfaces it via
+  the API logs.
 - **Health-poll target:** The action polls the **frontend**, not the API. Keep
   `startCommand` pointed at `scripts/start-smoke.sh`; pointing it directly at
-  the static server (`node scripts/serve-web.mjs`) would let the frontend come
-  up before the API.
-- **Missing build output:** The static server serves `apps/web/dist/`, so the
-  build phase (`pnpm build`) must run before start. Both `serve-web.mjs` and the
-  start script guard against a missing `apps/web/dist/index.html` and exit
-  non-zero with a clear message rather than timing out.
+  the Vite dev server would let the frontend come up before the API.
+- **Missing build output:** The Vite **dev** server serves the SPA from source,
+  so it does **not** require a prior `pnpm build` of `apps/web`. The build phase
+  is still run for `@acme/shared`/`@acme/api` (the API runs its compiled
+  `dist/index.js`).
 
 ## Agent lifecycle scripts
 
@@ -459,7 +196,7 @@ From the repository root:
 pnpm install --frozen-lockfile   # setup
 pnpm build                       # build: @acme/shared → @acme/api → @acme/web
 pnpm typecheck                   # verify
-bash scripts/start-smoke.sh      # start (API-gated, then static server in foreground)
+bash scripts/start-smoke.sh      # start (API-gated, then Vite dev server in foreground)
 ```
 
 Then, in another shell:
