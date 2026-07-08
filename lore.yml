@@ -8,7 +8,7 @@ project-smoke-test:
   setupCommand: pnpm install --frozen-lockfile
   buildCommand: pnpm build
   verifyCommand: pnpm typecheck
-  startCommand: bash scripts/start-smoke.sh
+  startCommand: scripts/start-smoke.sh
   baseUrl: http://localhost:5173
   healthPath: /
   browsePaths:

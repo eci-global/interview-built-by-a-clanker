@@ -15,7 +15,7 @@ The `project-smoke-test` action reads its `AppLifecycleParams` from
 | setup   | `pnpm install --frozen-lockfile`    | pnpm installs devDependencies by default; frozen for determinism. |
 | build   | `pnpm build`                        | `turbo build`: `@acme/shared` → `@acme/api` → `@acme/web`.        |
 | verify  | `pnpm typecheck`                    | `turbo typecheck` (`tsc --noEmit`); strongest available signal.   |
-| start   | `bash scripts/start-smoke.sh`       | API-first ordering (see below).                                   |
+| start   | `scripts/start-smoke.sh`            | API-first ordering (see below). The harness prefixes `bash`, so the manifest value must **not** start with `bash` (otherwise `bash bash scripts/...` fails). |
 
 Additional parameters:
 
