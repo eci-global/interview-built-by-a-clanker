@@ -176,6 +176,17 @@ than reading `lore.yml`. They delegate to the same commands:
 | `agent-verification-command.sh`   | `pnpm typecheck`                 |
 | `agent-start-command.sh`          | `bash scripts/start-smoke.sh`    |
 
+> **Note — why `agent-start-command.sh` keeps `bash` but `lore.yml`'s
+> `startCommand` does not.** The harness runs the manifest `startCommand` as
+> `nohup bash <startCommand>` (it **always prefixes `bash`**), so the manifest
+> value must be the bare script path `scripts/start-smoke.sh`; adding `bash`
+> there yields `bash bash scripts/start-smoke.sh`, which makes bash look for a
+> file literally named `bash` in the cwd and exits non-zero, so the app never
+> starts and the health poll times out. The lifecycle **script**
+> `agent-start-command.sh` is different: the harness invokes it by its path
+> (e.g. `bash agent-start-command.sh`), so it is free to `exec bash
+> scripts/start-smoke.sh` internally without any double-`bash`.
+
 ## Manual verification
 
 From the repository root:
