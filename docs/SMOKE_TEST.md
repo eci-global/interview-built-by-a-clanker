@@ -160,6 +160,50 @@ response omitting `username`).
 A failing build/verify may therefore be **expected** during assessment and is not
 necessarily a wiring defect.
 
+## Verification finding (serving & bind correctness)
+
+A read-only verification of the serving path against both the code and the
+actual lifecycle log confirms the following.
+
+**Code is correct.** In [`scripts/serve-web.mjs`](../scripts/serve-web.mjs):
+
+- The server binds **IPv4 `0.0.0.0:5173`** (`const HOST = "0.0.0.0"; const PORT
+  = 5173;` → `server.listen(PORT, HOST, …)`), matching the API's proven-reachable
+  `app.listen({ port: 3001, host: "0.0.0.0" })` in `apps/api/src/index.ts`.
+- `GET /` resolves to the dist root (a directory, not a file), so `statFile`
+  returns `null` and the request falls through to the **SPA fallback**, which
+  serves `index.html` with **HTTP 200** (`sendFile(res, INDEX_FILE, indexStat,
+  200)`). Client-side routes like `/personas/p-001` follow the same 200 path.
+- `dist/index.html` presence is checked **before** `listen()` (and again in
+  `start-smoke.sh` before launching), exiting non-zero with a clear message if
+  missing — no silent timeout.
+- `EADDRINUSE` (or any listen error) is caught by `server.on("error")` →
+  `process.exit(1)`, so a port conflict fails fast rather than hanging.
+
+**What the actual run log shows (environment limitation, not a code defect).**
+The lifecycle log for the failed sandbox shows the failure occurred **upstream
+of the web server**, at the API self-poll stage:
+
+```
+[start-smoke] Starting API (@acme/api) in background...
+[start-smoke] Waiting for API health at http://localhost:3001/health ...
+[start-smoke] API process exited early. Logs:
+  Error: Cannot find module '/workspace/apps/api/dist/index.js'  (MODULE_NOT_FOUND)
+  WARN  Local package.json exists, but node_modules missing, did you mean to install?
+[start-smoke] Cleaning up...
+```
+
+Because the API never became healthy, `start-smoke.sh` exited at the API gate
+and **never reached** the web phase — so in this particular failed sandbox the
+serve-web self-poll never ran, `dist/index.html` was never re-checked, and
+`5173` was never bound. The root cause is that the **setup/build phases did not
+complete** in that sandbox (`node_modules` missing → `apps/api/dist/index.js`
+absent), which is the documented "app stack FAILED to start" environment
+limitation, not a serving/bind defect in this repository. The serving and bind
+logic in `serve-web.mjs` (IPv4 `0.0.0.0:5173`, `GET /` → 200 SPA fallback,
+`EADDRINUSE` guard) is correct and would answer the poll once the build output
+and `node_modules` are present.
+
 ## Troubleshooting
 
 - **Frozen-lockfile error:** `--frozen-lockfile` fails if `pnpm-lock.yaml` is out
