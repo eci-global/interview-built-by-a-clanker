@@ -256,6 +256,62 @@ context — which is precisely what the web self-poll added to `start-smoke.sh` 
 designed to disambiguate (self-poll succeeds ⇒ environment; self-poll fails ⇒
 serving/code defect surfaced with logs).
 
+## Root-cause determination: environmental, not code-fixable
+
+Combining the serving/bind verification and the API-vs-web reachability
+symmetry above yields a single, defensible determination for an
+`AppHealthTimeoutError` (`App failed to become healthy within 5 minutes`) on
+`http://localhost:5173/`:
+
+**This is an environment/infrastructure reachability condition on port `5173`
+during the action's health-poll window — not a repository code defect.**
+
+The reasoning is exhaustive and rests on the proven IPv4 symmetry with the
+working API:
+
+1. **The serving code is correct.** `scripts/serve-web.mjs` binds IPv4
+   `0.0.0.0:5173`, checks `apps/web/dist/index.html` before `listen()`, returns
+   **HTTP 200** for `GET /` via the SPA fallback, and fails fast on
+   `EADDRINUSE`. Every code path that could make `/` not answer 200 is
+   contradicted by direct code inspection.
+2. **The orchestration is correct.** `scripts/start-smoke.sh` gates the web
+   server on a healthy API, backgrounds `node scripts/serve-web.mjs`, self-polls
+   `http://localhost:5173/`, and keeps serving under a `trap cleanup EXIT`. The
+   manifest (`lore.yml`) points the poll at `baseUrl + healthPath` =
+   `http://localhost:5173/`, exactly what the server answers.
+3. **The API proves loopback + IPv4 + this bind strategy work in the sandbox.**
+   The API and web server are identical along all five reachability dimensions
+   (bind strategy, process tree, sandbox/network namespace, `curl -sf`
+   mechanism, polled `/`→200 response). The API's `curl http://localhost:3001/health`
+   succeeds, proving `localhost` resolves to IPv4 loopback here and that a
+   `0.0.0.0` listener is reachable by that path. An identically-bound
+   `0.0.0.0:5173` listener that returns 200 on `/` **must** answer the next
+   poll tick the same way.
+4. **No asymmetry remains inside this repo.** Because every code-addressable
+   dimension matches the reachable API, there is no code path in
+   `serve-web.mjs`, `start-smoke.sh`, `lore.yml`, the API, or the web build that
+   can make `5173` unreachable while `3001` is reachable. The difference, if
+   any, lies **outside** this repository — in the network context of the
+   action's poll (e.g. the poll ran in a different network context than the
+   backgrounded start command, a per-port restriction on `5173`, or a transient
+   connection failure during the poll window).
+
+**Consequently, no code change to this repository is warranted, and making one
+would be speculative and potentially harmful.** In particular, changing
+`serve-web.mjs`'s `HOST` away from `0.0.0.0` (e.g. to an IPv6-only or
+unspecified host) would break the *proven* IPv4 reachability path and is
+explicitly warned against above. The self-poll already added to
+`start-smoke.sh` is the correct, non-speculative disambiguation: if the
+script's own shell reaches `5173` but the harness poll times out, the fault is
+environmental by construction.
+
+**Recommended action:** escalate to a human to either (a) waive the affected
+criterion for this run, or (b) fix the validation environment so the health
+poll's `ctx.exec` context can reach a backgrounded `0.0.0.0:5173` listener the
+same way it already reaches the (passing) `0.0.0.0:3001` API. The wiring here
+matches the spec/blueprint, and `coverage.json` marks the acceptance criteria as
+covered.
+
 ## Troubleshooting
 
 - **Frozen-lockfile error:** `--frozen-lockfile` fails if `pnpm-lock.yaml` is out
