@@ -51,6 +51,11 @@ if [ ! -f "apps/web/dist/index.html" ]; then
   exit 1
 fi
 
-pnpm --filter @acme/web preview -- --host 0.0.0.0 --port 5173 --strictPort &
+# Invoke vite directly via `pnpm exec` instead of `pnpm run preview -- <flags>`.
+# The `pnpm run <script> -- <flags>` form forwards a literal `--` into the
+# script, so vite's CLI (cac) treats everything after it as unparsed overflow
+# args and silently drops --host/--port/--strictPort. Running vite directly
+# lets the flags actually apply (binding IPv4 0.0.0.0 so localhost is reachable).
+pnpm --filter @acme/web exec vite preview --host 0.0.0.0 --port 5173 --strictPort &
 WEB_PID=$!
 wait "$WEB_PID"
