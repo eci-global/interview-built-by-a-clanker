@@ -10,7 +10,10 @@ export async function checkoutRoutes(app: FastifyInstance) {
     const { id: userId } = request.user as { id: string };
     const parsed = checkoutSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({
+        error: "Validation failed",
+        details: parsed.error.flatten(),
+      });
     }
 
     const cartEntries = Array.from(cartItemsStore.values()).filter(
@@ -48,6 +51,7 @@ export async function checkoutRoutes(app: FastifyInstance) {
     };
 
     db.orders.create(order);
+    db.cart.clearForUser(userId);
 
     return reply.status(201).send(order);
   });

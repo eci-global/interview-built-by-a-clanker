@@ -9,16 +9,16 @@ export const Route = createRootRoute({
 });
 
 function RootLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
-  const { data: cart } = useQuery({
-    queryKey: ["cart-count"],
+  const { data: cartCount = 0 } = useQuery({
+    queryKey: ["cart"],
     queryFn: () => api.get<Cart>("/cart"),
     enabled: !!user,
+    select: (cart) =>
+      cart.items.reduce((sum, item) => sum + item.quantity, 0),
   });
-
-  const cartCount = cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -51,7 +51,7 @@ function RootLayout() {
             </div>
 
             <div className="flex items-center gap-4">
-              {user ? (
+              {authLoading ? null : user ? (
                 <>
                   <Link
                     to="/cart"

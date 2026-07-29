@@ -37,7 +37,10 @@ export async function cartRoutes(app: FastifyInstance) {
     const { id: userId } = request.user as { id: string };
     const parsed = addToCartSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({
+        error: "Validation failed",
+        details: parsed.error.flatten(),
+      });
     }
 
     const { personaId, quantity } = parsed.data;
@@ -57,7 +60,10 @@ export async function cartRoutes(app: FastifyInstance) {
       const { id: userId } = request.user as { id: string };
       const parsed = updateCartItemSchema.safeParse(request.body);
       if (!parsed.success) {
-        return reply.status(400).send({ error: parsed.error.flatten() });
+        return reply.status(400).send({
+          error: "Validation failed",
+          details: parsed.error.flatten(),
+        });
       }
 
       const item = db.cart.getById(request.params.itemId);
@@ -75,7 +81,7 @@ export async function cartRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id: userId } = request.user as { id: string };
       const item = db.cart.getById(request.params.itemId);
-      if (!item) {
+      if (!item || item.userId !== userId) {
         return reply.status(404).send({ error: "Cart item not found" });
       }
 

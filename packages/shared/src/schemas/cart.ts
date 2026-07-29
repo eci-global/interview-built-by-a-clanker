@@ -23,7 +23,9 @@ export const updateCartItemSchema = z.object({
 
 export type UpdateCartItemInput = z.infer<typeof updateCartItemSchema>;
 
-export interface Cart {
-  items: CartItem[];
-  total: number;
-}
+export const cartSchema = z.object({
+  items: z.array(cartItemSchema),
+  total: z.number(),
+});
+
+export type Cart = z.infer<typeof cartSchema>;

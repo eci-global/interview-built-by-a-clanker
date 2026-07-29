@@ -11,7 +11,7 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -30,6 +30,10 @@ function CheckoutPage() {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
   });
+
+  if (authLoading || isLoading) {
+    return <div className="animate-pulse h-96 bg-gray-100 rounded-xl" />;
+  }
 
   if (!user) {
     return (
@@ -72,10 +76,6 @@ function CheckoutPage() {
         </Link>
       </div>
     );
-  }
-
-  if (isLoading) {
-    return <div className="animate-pulse h-96 bg-gray-100 rounded-xl" />;
   }
 
   if (!cart || cart.items.length === 0) {

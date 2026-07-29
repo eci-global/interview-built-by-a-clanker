@@ -11,6 +11,7 @@ export {
   registerSchema,
   loginSchema,
   userSchema,
+  authResponseSchema,
   type RegisterInput,
   type LoginInput,
   type User,
@@ -21,6 +22,7 @@ export {
   cartItemSchema,
   addToCartSchema,
   updateCartItemSchema,
+  cartSchema,
   type CartItem,
   type AddToCartInput,
   type UpdateCartItemInput,
@@ -33,3 +35,10 @@ export {
   type CheckoutInput,
   type Order,
 } from "./schemas/order.js";
+
+export {
+  addFavoriteSchema,
+  favoritesResponseSchema,
+  type AddFavoriteInput,
+  type FavoritesResponse,
+} from "./schemas/favorites.js";

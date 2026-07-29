@@ -11,7 +11,7 @@ export const Route = createFileRoute("/favorites")({
 });
 
 function FavoritesPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
 
   const { data, isLoading } = useQuery({
     queryKey: ["favorites"],
@@ -27,6 +27,19 @@ function FavoritesPage() {
     },
   });
 
+  if (authLoading || isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-white rounded-xl border p-6 animate-pulse h-48"
+          />
+        ))}
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="text-center py-16">
@@ -39,19 +52,6 @@ function FavoritesPage() {
         >
           Go to sign in
         </Link>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-xl border p-6 animate-pulse h-48"
-          />
-        ))}
       </div>
     );
   }

@@ -23,7 +23,9 @@ export const userSchema = z.object({
 
 export type User = z.infer<typeof userSchema>;
 
-export interface AuthResponse {
-  token: string;
-  user: User;
-}
+export const authResponseSchema = z.object({
+  token: z.string(),
+  user: userSchema,
+});
+
+export type AuthResponse = z.infer<typeof authResponseSchema>;

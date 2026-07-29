@@ -19,7 +19,10 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/register", async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({
+        error: "Validation failed",
+        details: parsed.error.flatten(),
+      });
     }
 
     const { username, email, password } = parsed.data;
@@ -48,7 +51,10 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/login", async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({
+        error: "Validation failed",
+        details: parsed.error.flatten(),
+      });
     }
 
     const { email, password } = parsed.data;
@@ -59,9 +65,9 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const token = app.jwt.sign({ id: user.id, email: user.email });
-    const response = {
+    const response: AuthResponse = {
       token,
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, username: user.username, email: user.email },
     };
 
     return response;
