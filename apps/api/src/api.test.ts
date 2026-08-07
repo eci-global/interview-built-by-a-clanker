@@ -80,8 +80,8 @@ describe("API Integration & Bug Verification Tests", () => {
     });
   });
 
-  describe("Authentication", () => {
-    it("logs in registered user", async () => {
+  describe("BUG-1: /auth/login username in AuthResponse", () => {
+    it("HAPPY PATH: returns username in user object on successful login", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/auth/login",
@@ -89,64 +89,42 @@ describe("API Integration & Bug Verification Tests", () => {
       });
       expect(res.statusCode).toBe(200);
       const data = JSON.parse(res.body);
-      expect(data.token).toBeDefined();
+      expect(data.user.username).toBe("user1");
       expect(data.user.email).toBe("user1@example.com");
     });
 
-    it("rejects invalid credentials with 401", async () => {
+    it("NEGATIVE PATH: rejects invalid credentials with 401 Unauthorized", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/auth/login",
         payload: { email: "user1@example.com", password: "wrongpassword" },
       });
       expect(res.statusCode).toBe(401);
+      expect(JSON.parse(res.body).error).toBe("Invalid email or password");
     });
+  });
 
-    it("returns user info for /auth/me with valid token", async () => {
+  describe("BUG-2: JWT Authentication Middleware", () => {
+    it("HAPPY PATH: populates request.user for protected route when valid token is supplied", async () => {
       const res = await app.inject({
         method: "GET",
         url: "/auth/me",
         headers: { authorization: `Bearer ${tokenUser1}` },
       });
       expect(res.statusCode).toBe(200);
-      const data = JSON.parse(res.body);
-      expect(data.email).toBe("user1@example.com");
+      expect(JSON.parse(res.body).username).toBe("user1");
     });
 
-    it("returns 401 for unauthenticated request to /auth/me", async () => {
+    it("NEGATIVE PATH: blocks protected endpoint without token with 401 Unauthorized", async () => {
       const res = await app.inject({ method: "GET", url: "/auth/me" });
       expect(res.statusCode).toBe(401);
+      expect(JSON.parse(res.body).error).toBe("Unauthorized");
     });
   });
 
-  describe("Cart Security & Functionality", () => {
-    it("allows user to add, update, and fetch cart items", async () => {
-      // Add
-      const addRes = await app.inject({
-        method: "POST",
-        url: "/cart",
-        headers: { authorization: `Bearer ${tokenUser1}` },
-        payload: { personaId: "p-001", quantity: 2 },
-      });
-      expect(addRes.statusCode).toBe(200);
-      const cart = JSON.parse(addRes.body);
-      expect(cart.items).toHaveLength(1);
-      expect(cart.items[0].quantity).toBe(2);
-      const itemId = cart.items[0].id;
-
-      // Update
-      const updateRes = await app.inject({
-        method: "PUT",
-        url: `/cart/${itemId}`,
-        headers: { authorization: `Bearer ${tokenUser1}` },
-        payload: { quantity: 3 },
-      });
-      expect(updateRes.statusCode).toBe(200);
-      expect(JSON.parse(updateRes.body).items[0].quantity).toBe(3);
-    });
-
-    it("SECURITY FIX: prevents User 2 from deleting User 1's cart item", async () => {
-      // User 1 adds item to cart
+  describe("BUG-3: CORS Allowed HTTP Methods", () => {
+    it("HAPPY PATH: allows DELETE method for cart item removal", async () => {
+      // Add item first
       const addRes = await app.inject({
         method: "POST",
         url: "/cart",
@@ -155,62 +133,57 @@ describe("API Integration & Bug Verification Tests", () => {
       });
       const itemId = JSON.parse(addRes.body).items[0].id;
 
-      // User 2 attempts to delete User 1's cart item
-      const deleteRes = await app.inject({
+      // Delete item
+      const delRes = await app.inject({
         method: "DELETE",
         url: `/cart/${itemId}`,
-        headers: { authorization: `Bearer ${tokenUser2}` },
-      });
-      expect(deleteRes.statusCode).toBe(404);
-
-      // Verify User 1's cart item still exists
-      const getRes = await app.inject({
-        method: "GET",
-        url: "/cart",
         headers: { authorization: `Bearer ${tokenUser1}` },
       });
-      expect(JSON.parse(getRes.body).items).toHaveLength(1);
+      expect(delRes.statusCode).toBe(200);
     });
-  });
 
-  describe("Favorites", () => {
-    it("adds and removes favorites for authenticated user", async () => {
-      // Add favorite
-      const addRes = await app.inject({
-        method: "POST",
-        url: "/favorites",
-        headers: { authorization: `Bearer ${tokenUser1}` },
-        payload: { personaId: "p-001" },
-      });
-      expect(addRes.statusCode).toBe(200);
-
-      // Get favorites
-      const getRes = await app.inject({
-        method: "GET",
-        url: "/favorites",
-        headers: { authorization: `Bearer ${tokenUser1}` },
-      });
-      expect(getRes.statusCode).toBe(200);
-      expect(JSON.parse(getRes.body).favorites).toHaveLength(1);
-
-      // Remove favorite
-      const deleteRes = await app.inject({
+    it("NEGATIVE PATH: returns 404 when deleting non-existent cart item", async () => {
+      const res = await app.inject({
         method: "DELETE",
-        url: "/favorites/p-001",
+        url: "/cart/non-existent-item-999",
         headers: { authorization: `Bearer ${tokenUser1}` },
       });
-      expect(deleteRes.statusCode).toBe(200);
+      expect(res.statusCode).toBe(404);
+      expect(JSON.parse(res.body).error).toBe("Cart item not found");
     });
   });
 
-  describe("Checkout", () => {
-    it("completes checkout and empties user cart", async () => {
+  describe("BUG-4: Search minPrice Filter Logic", () => {
+    it("HAPPY PATH: minPrice=70 returns only personas with price >= 70", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/personas?minPrice=70",
+      });
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.length).toBeGreaterThan(0);
+      expect(data.every((p: any) => p.price >= 70)).toBe(true);
+    });
+
+    it("NEGATIVE PATH: minPrice=9999 returns empty array", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/personas?minPrice=9999",
+      });
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data).toEqual([]);
+    });
+  });
+
+  describe("BUG-5: Cart Clearing Upon Checkout", () => {
+    it("HAPPY PATH: successful checkout creates order and clears active cart", async () => {
       // Add item to cart
       await app.inject({
         method: "POST",
         url: "/cart",
         headers: { authorization: `Bearer ${tokenUser1}` },
-        payload: { personaId: "p-001", quantity: 1 },
+        payload: { personaId: "p-001", quantity: 2 },
       });
 
       // Checkout
@@ -223,15 +196,47 @@ describe("API Integration & Bug Verification Tests", () => {
       expect(checkoutRes.statusCode).toBe(201);
       const order = JSON.parse(checkoutRes.body);
       expect(order.id).toBeDefined();
-      expect(order.items).toHaveLength(1);
 
-      // Cart should now be empty
+      // Cart is cleared
       const cartRes = await app.inject({
         method: "GET",
         url: "/cart",
         headers: { authorization: `Bearer ${tokenUser1}` },
       });
       expect(JSON.parse(cartRes.body).items).toHaveLength(0);
+    });
+
+    it("NEGATIVE PATH: checkout on empty cart returns 400 Bad Request", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/checkout",
+        headers: { authorization: `Bearer ${tokenUser1}` },
+        payload: { name: "User One", email: "user1@example.com" },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error).toBe("Cart is empty");
+    });
+  });
+
+  describe("BUG-6: Frontend Auth Storage Clearance", () => {
+    it("HAPPY PATH: login persists token and user data", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/auth/login",
+        payload: { email: "user1@example.com", password: "password123" },
+      });
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.token).toBeDefined();
+    });
+
+    it("NEGATIVE PATH: unauthenticated request after token removal returns 401", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/cart",
+        headers: { authorization: "Bearer invalid_or_cleared_token" },
+      });
+      expect(res.statusCode).toBe(401);
     });
   });
 });

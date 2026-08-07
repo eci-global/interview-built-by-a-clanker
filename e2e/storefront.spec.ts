@@ -1,12 +1,24 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Agentic Personas Storefront E2E Flow", () => {
-  test("user can register, browse, favorite, add to cart, and complete checkout", async ({ page }) => {
+  test("user can register, search, browse, favorite, add to cart, and complete checkout", async ({ page }) => {
     // 1. Visit homepage
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Discover Agentic Personas" })).toBeVisible();
 
-    // 2. Register account
+    // 2. Test search functionality (BUG-015 fix verification)
+    const searchInput = page.getByPlaceholder("Search personas by name, capability, or description...");
+    await searchInput.fill("zero");
+    // Wait for debounced query & URL update
+    await expect(page).toHaveURL("/?q=zero");
+    await expect(page.getByText("Zero-Day Zara")).toBeVisible();
+    await expect(page.getByText("Refactor Rex")).not.toBeVisible();
+
+    // Clear search
+    await searchInput.fill("");
+    await expect(page.getByText("Refactor Rex")).toBeVisible();
+
+    // 3. Register account
     await page.getByRole("link", { name: "Sign up" }).click();
     await expect(page.getByRole("heading", { name: "Create Account" })).toBeVisible();
 
@@ -19,19 +31,19 @@ test.describe("Agentic Personas Storefront E2E Flow", () => {
     await page.fill("#password", "password123");
     await page.getByRole("button", { name: "Create Account" }).click();
 
-    // 3. Back on homepage, verify persona price formatting ($49.99, not $4999.00)
+    // 4. Back on homepage, verify persona price formatting ($49.99, not $4999.00)
     await expect(page.getByText("$49.99/mo").first()).toBeVisible();
     await expect(page.getByText("$4999.00")).not.toBeVisible();
 
-    // 4. Click on a persona detail
+    // 5. Click on a persona detail
     await page.click("text=Refactor Rex");
     await expect(page.getByRole("heading", { name: "Refactor Rex" })).toBeVisible();
     await expect(page.getByText("$49.99")).toBeVisible();
 
-    // 5. Add to cart
+    // 6. Add to cart
     await page.getByRole("button", { name: "Add to Cart" }).click();
 
-    // 6. Toggle Favorite (Favorite persona)
+    // 7. Toggle Favorite (Favorite persona)
     const heartButton = page.locator("button:has(svg.w-6.h-6)");
     await heartButton.click();
     // Wait until heart turns red
@@ -42,7 +54,7 @@ test.describe("Agentic Personas Storefront E2E Flow", () => {
     await expect(page.getByRole("heading", { name: "Your Favorites" })).toBeVisible();
     await expect(page.getByText("Refactor Rex")).toBeVisible();
 
-    // 7. Go to Cart page
+    // 8. Go to Cart page
     await page.locator("nav a[href='/cart']").click();
     await expect(page.getByRole("heading", { name: "Your Cart" })).toBeVisible();
     await expect(page.getByText("Refactor Rex x1")).toBeVisible();
@@ -51,7 +63,7 @@ test.describe("Agentic Personas Storefront E2E Flow", () => {
     const minusBtn = page.getByRole("button", { name: "-" });
     await expect(minusBtn).toBeDisabled();
 
-    // 8. Proceed to checkout
+    // 9. Proceed to checkout
     await page.getByRole("button", { name: "Proceed to Checkout" }).click();
     await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
 
@@ -62,7 +74,7 @@ test.describe("Agentic Personas Storefront E2E Flow", () => {
     // Place order
     await page.getByRole("button", { name: "Place Order" }).click();
 
-    // 9. Verify order confirmation
+    // 10. Verify order confirmation
     await expect(page.getByRole("heading", { name: "Order Confirmed!" })).toBeVisible();
     await expect(page.getByText(email)).toBeVisible();
   });
