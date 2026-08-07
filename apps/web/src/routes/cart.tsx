@@ -23,14 +23,16 @@ function CartPage() {
   const updateQuantity = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
       api.put<Cart>(`/cart/${itemId}`, { quantity }),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(["cart"], data);
       queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
   });
 
   const removeItem = useMutation({
     mutationFn: (itemId: string) => api.delete<Cart>(`/cart/${itemId}`),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(["cart"], data);
       queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
   });

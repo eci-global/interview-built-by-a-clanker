@@ -78,4 +78,23 @@ test.describe("Agentic Personas Storefront E2E Flow", () => {
     await expect(page.getByRole("heading", { name: "Order Confirmed!" })).toBeVisible();
     await expect(page.getByText(email)).toBeVisible();
   });
+
+  test("user can add an item to cart and remove it cleanly (BUG-016 verification)", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Sign up" }).click();
+    const ts = Date.now();
+    await page.fill("#username", `removeuser_${ts}`);
+    await page.fill("#email", `remove_${ts}@example.com`);
+    await page.fill("#password", "password123");
+    await page.getByRole("button", { name: "Create Account" }).click();
+
+    await page.click("text=Zero-Day Zara");
+    await page.getByRole("button", { name: "Add to Cart" }).click();
+
+    await page.locator("nav a[href='/cart']").click();
+    await expect(page.getByRole("link", { name: "Zero-Day Zara" }).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Remove" }).click();
+    await expect(page.getByRole("heading", { name: "Your cart is empty" })).toBeVisible();
+  });
 });

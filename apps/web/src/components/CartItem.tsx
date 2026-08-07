@@ -38,6 +38,7 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
 
       <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={() => onUpdateQuantity(item.quantity - 1)}
           disabled={item.quantity <= 1}
           className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -48,6 +49,7 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
           {item.quantity}
         </span>
         <button
+          type="button"
           onClick={() => onUpdateQuantity(item.quantity + 1)}
           className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
         >
@@ -60,8 +62,13 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
           ${(item.persona.price * item.quantity).toFixed(2)}
         </p>
         <button
-          onClick={onRemove}
-          className="text-sm text-red-500 hover:text-red-700 transition-colors mt-1"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="text-sm text-red-500 hover:text-red-700 font-medium transition-colors mt-1 cursor-pointer"
         >
           Remove
         </button>

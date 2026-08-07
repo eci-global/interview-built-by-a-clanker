@@ -74,12 +74,19 @@ export async function cartRoutes(app: FastifyInstance) {
     "/cart/:itemId",
     async (request, reply) => {
       const { id: userId } = request.user as { id: string };
-      const item = db.cart.getById(request.params.itemId);
+      let item = db.cart.getById(request.params.itemId);
+      if (!item || item.userId !== userId) {
+        const userEntries = db.cart.getByUserId(userId);
+        item = userEntries.find(
+          (e) => e.personaId === request.params.itemId || e.id === request.params.itemId
+        );
+      }
+
       if (!item || item.userId !== userId) {
         return reply.status(404).send({ error: "Cart item not found" });
       }
 
-      db.cart.remove(request.params.itemId);
+      db.cart.remove(item.id);
       return enrichCartItems(userId);
     }
   );
