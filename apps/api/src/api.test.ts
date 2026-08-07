@@ -11,7 +11,12 @@ import { db, cartItems, favorites, users, orders } from "./db.js";
 
 async function buildApp() {
   const app = Fastify({ logger: false });
-  await app.register(cors, { origin: true, credentials: true });
+  await app.register(cors, {
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  });
   await app.register(jwt, { secret: "test-secret" });
 
   await app.register(personaRoutes);
@@ -237,6 +242,22 @@ describe("API Integration & Bug Verification Tests", () => {
         headers: { authorization: "Bearer invalid_or_cleared_token" },
       });
       expect(res.statusCode).toBe(401);
+    });
+  });
+
+  describe("BUG-17: CORS Preflight & Authorization Headers", () => {
+    it("HAPPY PATH: handles OPTIONS preflight for DELETE /cart/:itemId with Authorization header", async () => {
+      const res = await app.inject({
+        method: "OPTIONS",
+        url: "/cart/cart-1",
+        headers: {
+          origin: "http://localhost:5173",
+          "access-control-request-method": "DELETE",
+          "access-control-request-headers": "authorization,content-type",
+        },
+      });
+      expect(res.statusCode).toBe(204);
+      expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
     });
   });
 });
