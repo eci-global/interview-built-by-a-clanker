@@ -9,6 +9,8 @@ import {
 import type { User, AuthResponse } from "@acme/shared";
 import { api, ApiError } from "./api";
 
+import { queryClient } from "./queryClient";
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -47,12 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const login = useCallback((response: AuthResponse) => {
+    queryClient.clear();
     localStorage.setItem("auth_token", response.token);
     setToken(response.token);
     setUser(response.user);
   }, []);
 
   const logout = useCallback(() => {
+    queryClient.clear();
     localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);

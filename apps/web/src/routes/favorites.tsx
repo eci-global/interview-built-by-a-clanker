@@ -80,8 +80,11 @@ function FavoritesPage() {
             <div key={persona.id} className="relative">
               <PersonaCard persona={persona} />
               <button
-                onClick={() => removeFavorite.mutate(persona.id)}
-                className="absolute top-4 right-4 p-2 bg-white rounded-full shadow hover:bg-gray-50 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeFavorite.mutate(persona.id);
+                }}
+                className="absolute top-4 right-4 p-2 bg-white rounded-full shadow hover:bg-gray-50 transition-colors z-10"
                 title="Remove from favorites"
               >
                 <svg

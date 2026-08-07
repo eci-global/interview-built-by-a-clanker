@@ -19,15 +19,13 @@ function PersonaDetailPage() {
     queryFn: () => api.get<Persona>(`/personas/${personaId}`),
   });
 
-  const { data: favorites = [] } = useQuery({
+  const { data: favoritesData } = useQuery({
     queryKey: ["favorites"],
-    queryFn: async () => {
-      const res = await api.get<{ favorites: Persona[] }>("/favorites");
-      return res.favorites.map((p) => p.id);
-    },
+    queryFn: () => api.get<{ favorites: Persona[] }>("/favorites"),
+    enabled: !!user,
   });
 
-  const isFavorited = favorites.includes(personaId);
+  const isFavorited = favoritesData?.favorites.some((p) => p.id === personaId) ?? false;
 
   const addToCart = useMutation({
     mutationFn: () =>
@@ -39,7 +37,7 @@ function PersonaDetailPage() {
 
   const toggleFavorite = useMutation({
     mutationFn: () =>
-      !isFavorited
+      isFavorited
         ? api.delete(`/favorites/${personaId}`)
         : api.post("/favorites", { personaId }),
     onSuccess: () => {

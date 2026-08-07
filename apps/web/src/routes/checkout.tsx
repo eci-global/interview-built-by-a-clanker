@@ -13,8 +13,8 @@ export const Route = createFileRoute("/checkout")({
 function CheckoutPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(() => user?.username ?? "");
+  const [email, setEmail] = useState(() => user?.email ?? "");
   const [order, setOrder] = useState<Order | null>(null);
 
   const { data: cart, isLoading } = useQuery({
