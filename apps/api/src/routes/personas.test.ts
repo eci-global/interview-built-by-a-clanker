@@ -71,4 +71,17 @@ describe("GET /personas", () => {
     assert.equal(personas[0]?.specialty, "Security");
     assert.equal(personas[0]?.tier, "Enterprise");
   });
+
+  it("filters personas by minimum price", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/personas?minPrice=50",
+    });
+
+    assert.equal(response.statusCode, 200);
+    const personas = response.json<{ price: number }[]>();
+    assert.ok(personas.length > 0);
+    assert.ok(personas.every((p) => p.price >= 50));
+    assert.ok(personas.some((p) => p.price >= 89.99));
+  });
 });

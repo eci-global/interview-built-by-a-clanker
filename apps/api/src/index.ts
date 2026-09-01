@@ -6,14 +6,11 @@ import { authRoutes } from "./routes/auth.js";
 import { cartRoutes } from "./routes/cart.js";
 import { favoriteRoutes } from "./routes/favorites.js";
 import { checkoutRoutes } from "./routes/checkout.js";
+import { corsOptions } from "./cors.js";
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, {
-  origin: "http://localhost:5173",
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "OPTIONS"],
-});
+await app.register(cors, corsOptions);
 await app.register(jwt, { secret: "agentic-personas-dev-secret" });
 
 await app.register(personaRoutes);

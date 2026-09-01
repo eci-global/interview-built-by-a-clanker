@@ -1,9 +1,12 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import { authRoutes } from "./routes/auth.js";
 import { cartRoutes } from "./routes/cart.js";
+import { checkoutRoutes } from "./routes/checkout.js";
 import { favoriteRoutes } from "./routes/favorites.js";
 import { personaRoutes } from "./routes/personas.js";
+import { corsOptions } from "./cors.js";
 
 const JWT_SECRET = "agentic-personas-dev-secret";
 
@@ -22,6 +25,19 @@ export async function buildApiTestApp() {
   await app.register(authRoutes);
   await app.register(cartRoutes);
   await app.register(favoriteRoutes);
+  await app.ready();
+  return app;
+}
+
+export async function buildFullTestApp() {
+  const app = Fastify({ logger: false });
+  await app.register(cors, corsOptions);
+  await app.register(jwt, { secret: JWT_SECRET });
+  await app.register(personaRoutes);
+  await app.register(authRoutes);
+  await app.register(cartRoutes);
+  await app.register(favoriteRoutes);
+  await app.register(checkoutRoutes);
   await app.ready();
   return app;
 }

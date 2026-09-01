@@ -16,4 +16,11 @@ describe("getFavoriteToggleAction", () => {
       path: "/favorites/p-001",
     });
   });
+
+  it("uses the isFavorited argument passed at call time, not a stale closure", () => {
+    const first = getFavoriteToggleAction(false, "p-001");
+    const second = getFavoriteToggleAction(true, "p-001");
+    expect(first.method).toBe("POST");
+    expect(second.method).toBe("DELETE");
+  });
 });

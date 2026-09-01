@@ -84,4 +84,28 @@ describe("cart routes", () => {
     assert.equal(cart.items.length, 1);
     assert.equal(cart.items[0]?.quantity, 2);
   });
+
+  it("returns 404 when deleting another user's cart item", async () => {
+    const owner = await registerTestUser(app);
+    const other = await registerTestUser(app);
+
+    const addResponse = await app.inject({
+      method: "POST",
+      url: "/cart",
+      headers: authHeader(owner.token),
+      payload: { personaId: "p-001", quantity: 1 },
+    });
+
+    const cart = addResponse.json<{ items: { id: string }[] }>();
+    const itemId = cart.items[0]?.id;
+    assert.ok(itemId);
+
+    const deleteResponse = await app.inject({
+      method: "DELETE",
+      url: `/cart/${itemId}`,
+      headers: authHeader(other.token),
+    });
+
+    assert.equal(deleteResponse.statusCode, 404);
+  });
 });

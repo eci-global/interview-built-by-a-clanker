@@ -86,3 +86,37 @@ describe("GET /auth/me", () => {
     assert.deepEqual(response.json(), { error: "User not found" });
   });
 });
+
+describe("POST /auth/login", () => {
+  let app: FastifyInstance;
+
+  before(async () => {
+    app = await buildAuthTestApp();
+  });
+
+  after(async () => {
+    await app.close();
+  });
+
+  it("returns username in the login response", async () => {
+    const email = `login-test-${Date.now()}@example.com`;
+    const username = "login-test-user";
+
+    await app.inject({
+      method: "POST",
+      url: "/auth/register",
+      payload: { username, email, password: "password123" },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { email, password: "password123" },
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = response.json<{ user: { id: string; username: string; email: string } }>();
+    assert.equal(body.user.username, username);
+    assert.equal(body.user.email, email);
+  });
+});
