@@ -71,7 +71,10 @@ export async function authRoutes(app: FastifyInstance) {
     "/auth/me",
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const payload = request.user as { id: string; email: string };
+      const payload = request.user as { id: string; email: string } | null;
+      if (!payload?.id) {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
       const user = db.users.getById(payload.id);
       if (!user) {
         return reply.status(404).send({ error: "User not found" });

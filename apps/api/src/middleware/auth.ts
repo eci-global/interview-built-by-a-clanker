@@ -1,19 +1,29 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
-const ENFORCE_AUTH = process.env.ENFORCE_AUTH === "true";
+function enforceAuth(): boolean {
+  return process.env.ENFORCE_AUTH === "true";
+}
 
 export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  if (!ENFORCE_AUTH) {
-    return;
+  const hasBearer = request.headers.authorization?.startsWith("Bearer ");
+
+  if (hasBearer) {
+    try {
+      await request.jwtVerify();
+      return;
+    } catch {
+      if (enforceAuth()) {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
+      return;
+    }
   }
 
-  try {
-    await request.jwtVerify();
-  } catch {
-    reply.status(401).send({ error: "Unauthorized" });
+  if (enforceAuth()) {
+    return reply.status(401).send({ error: "Unauthorized" });
   }
 }
 
