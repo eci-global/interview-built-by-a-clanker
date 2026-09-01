@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { checkoutSchema, type Order, type CartItem } from "@acme/shared";
-import { db, cartItems as cartItemsStore, personas as personasStore } from "../db.js";
+import { db } from "../db.js";
 import { authenticate } from "../middleware/auth.js";
 
 export async function checkoutRoutes(app: FastifyInstance) {
@@ -13,9 +13,7 @@ export async function checkoutRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
 
-    const cartEntries = Array.from(cartItemsStore.values()).filter(
-      (item) => item.userId === userId
-    );
+    const cartEntries = db.cart.getByUserId(userId);
     if (cartEntries.length === 0) {
       return reply.status(400).send({ error: "Cart is empty" });
     }
@@ -24,7 +22,7 @@ export async function checkoutRoutes(app: FastifyInstance) {
     let total = 0;
 
     for (const entry of cartEntries) {
-      const persona = personasStore.get(entry.personaId);
+      const persona = db.personas.getById(entry.personaId);
       if (!persona) continue;
 
       items.push({
@@ -35,6 +33,10 @@ export async function checkoutRoutes(app: FastifyInstance) {
       });
 
       total += persona.price * entry.quantity;
+    }
+
+    if (items.length === 0) {
+      return reply.status(400).send({ error: "Cart is empty" });
     }
 
     const order: Order = {
@@ -48,6 +50,7 @@ export async function checkoutRoutes(app: FastifyInstance) {
     };
 
     db.orders.create(order);
+    db.cart.clearForUser(userId);
 
     return reply.status(201).send(order);
   });

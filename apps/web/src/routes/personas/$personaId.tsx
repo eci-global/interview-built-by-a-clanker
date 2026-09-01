@@ -5,6 +5,8 @@ import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
 import { StarRating } from "~/components/StarRating";
 import type { Persona, Cart } from "@acme/shared";
+import { CART_QUERY_KEY, FAVORITES_IDS_QUERY_KEY, FAVORITES_LIST_QUERY_KEY } from "~/lib/queryKeys";
+import { getFavoriteToggleAction } from "~/lib/favorites";
 
 export const Route = createFileRoute("/personas/$personaId")({
   component: PersonaDetailPage,
@@ -20,11 +22,12 @@ function PersonaDetailPage() {
   });
 
   const { data: favorites = [] } = useQuery({
-    queryKey: ["favorites"],
+    queryKey: FAVORITES_IDS_QUERY_KEY,
     queryFn: async () => {
       const res = await api.get<{ favorites: Persona[] }>("/favorites");
       return res.favorites.map((p) => p.id);
     },
+    enabled: !!user,
   });
 
   const isFavorited = favorites.includes(personaId);
@@ -33,17 +36,20 @@ function PersonaDetailPage() {
     mutationFn: () =>
       api.post<Cart>("/cart", { personaId, quantity: 1 }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
   });
 
   const toggleFavorite = useMutation({
-    mutationFn: () =>
-      !isFavorited
-        ? api.delete(`/favorites/${personaId}`)
-        : api.post("/favorites", { personaId }),
+    mutationFn: (currentlyFavorited: boolean) => {
+      const action = getFavoriteToggleAction(currentlyFavorited, personaId);
+      return action.method === "DELETE"
+        ? api.delete(action.path)
+        : api.post(action.path, action.body);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({ queryKey: FAVORITES_IDS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: FAVORITES_LIST_QUERY_KEY });
     },
   });
 
@@ -172,7 +178,7 @@ function PersonaDetailPage() {
                   {addToCart.isPending ? "Adding..." : "Add to Cart"}
                 </button>
                 <button
-                  onClick={() => toggleFavorite.mutate()}
+                  onClick={() => toggleFavorite.mutate(isFavorited)}
                   disabled={toggleFavorite.isPending}
                   className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >

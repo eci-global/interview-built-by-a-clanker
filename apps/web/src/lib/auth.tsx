@@ -8,6 +8,8 @@ import {
 } from "react";
 import type { User, AuthResponse } from "@acme/shared";
 import { api, ApiError } from "./api";
+import { queryClient } from "./queryClient";
+import { AUTHENTICATED_QUERY_KEYS } from "./queryKeys";
 
 interface AuthContextType {
   user: User | null;
@@ -28,34 +30,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!token) {
+      setUser(null);
       setIsLoading(false);
       return;
     }
 
+    let cancelled = false;
+
     api
       .get<User>("/auth/me")
       .then((u) => {
-        setUser(u);
+        if (!cancelled) setUser(u);
       })
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
+        if (cancelled) return;
+        if (err instanceof ApiError && (err.status === 401 || err.status === 404)) {
           localStorage.removeItem("auth_token");
           setToken(null);
+          setUser(null);
         }
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
+  const clearAuthenticatedQueries = useCallback(() => {
+    for (const queryKey of AUTHENTICATED_QUERY_KEYS) {
+      queryClient.removeQueries({ queryKey });
+    }
+  }, []);
+
   const login = useCallback((response: AuthResponse) => {
+    clearAuthenticatedQueries();
     localStorage.setItem("auth_token", response.token);
     setToken(response.token);
     setUser(response.user);
-  }, []);
+  }, [clearAuthenticatedQueries]);
 
   const logout = useCallback(() => {
+    clearAuthenticatedQueries();
+    localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
-  }, []);
+  }, [clearAuthenticatedQueries]);
 
   return (
     <AuthContext.Provider value={{ user, token, isLoading, login, logout }}>

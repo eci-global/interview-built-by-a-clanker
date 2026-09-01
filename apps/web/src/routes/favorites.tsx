@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
+import { FAVORITES_IDS_QUERY_KEY, FAVORITES_LIST_QUERY_KEY } from "~/lib/queryKeys";
 import { PersonaCard } from "~/components/PersonaCard";
 import type { Persona } from "@acme/shared";
 
@@ -14,7 +15,7 @@ function FavoritesPage() {
   const { user } = useAuth();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["favorites"],
+    queryKey: FAVORITES_LIST_QUERY_KEY,
     queryFn: () => api.get<{ favorites: Persona[] }>("/favorites"),
     enabled: !!user,
   });
@@ -23,7 +24,8 @@ function FavoritesPage() {
     mutationFn: (personaId: string) =>
       api.delete(`/favorites/${personaId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({ queryKey: FAVORITES_LIST_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: FAVORITES_IDS_QUERY_KEY });
     },
   });
 
