@@ -28,22 +28,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!token) {
+      setUser(null);
       setIsLoading(false);
       return;
     }
 
+    let cancelled = false;
+
     api
       .get<User>("/auth/me")
       .then((u) => {
-        setUser(u);
+        if (!cancelled) setUser(u);
       })
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
+        if (cancelled) return;
+        if (err instanceof ApiError && (err.status === 401 || err.status === 404)) {
           localStorage.removeItem("auth_token");
           setToken(null);
+          setUser(null);
         }
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   const login = useCallback((response: AuthResponse) => {
@@ -53,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
   }, []);

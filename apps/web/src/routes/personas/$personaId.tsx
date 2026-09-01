@@ -5,6 +5,8 @@ import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
 import { StarRating } from "~/components/StarRating";
 import type { Persona, Cart } from "@acme/shared";
+import { CART_QUERY_KEY } from "~/lib/queryKeys";
+import { getFavoriteToggleAction } from "~/lib/favorites";
 
 export const Route = createFileRoute("/personas/$personaId")({
   component: PersonaDetailPage,
@@ -25,6 +27,7 @@ function PersonaDetailPage() {
       const res = await api.get<{ favorites: Persona[] }>("/favorites");
       return res.favorites.map((p) => p.id);
     },
+    enabled: !!user,
   });
 
   const isFavorited = favorites.includes(personaId);
@@ -33,15 +36,17 @@ function PersonaDetailPage() {
     mutationFn: () =>
       api.post<Cart>("/cart", { personaId, quantity: 1 }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
   });
 
   const toggleFavorite = useMutation({
-    mutationFn: () =>
-      !isFavorited
-        ? api.delete(`/favorites/${personaId}`)
-        : api.post("/favorites", { personaId }),
+    mutationFn: () => {
+      const action = getFavoriteToggleAction(isFavorited, personaId);
+      return action.method === "DELETE"
+        ? api.delete(action.path)
+        : api.post(action.path, action.body);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
     },

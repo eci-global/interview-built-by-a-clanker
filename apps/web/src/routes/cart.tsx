@@ -5,6 +5,7 @@ import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
 import { CartItem } from "~/components/CartItem";
 import type { Cart } from "@acme/shared";
+import { CART_QUERY_KEY } from "~/lib/queryKeys";
 
 export const Route = createFileRoute("/cart")({
   component: CartPage,
@@ -15,7 +16,7 @@ function CartPage() {
   const navigate = useNavigate();
 
   const { data: cart, isLoading } = useQuery({
-    queryKey: ["cart"],
+    queryKey: CART_QUERY_KEY,
     queryFn: () => api.get<Cart>("/cart"),
     enabled: !!user,
   });
@@ -24,14 +25,14 @@ function CartPage() {
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
       api.put<Cart>(`/cart/${itemId}`, { quantity }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
   });
 
   const removeItem = useMutation({
     mutationFn: (itemId: string) => api.delete<Cart>(`/cart/${itemId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
   });
 

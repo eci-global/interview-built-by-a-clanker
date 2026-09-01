@@ -5,6 +5,7 @@ import { api } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import { queryClient } from "~/lib/queryClient";
 import type { Cart, Order } from "@acme/shared";
+import { CART_QUERY_KEY } from "~/lib/queryKeys";
 
 export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
@@ -18,7 +19,7 @@ function CheckoutPage() {
   const [order, setOrder] = useState<Order | null>(null);
 
   const { data: cart, isLoading } = useQuery({
-    queryKey: ["cart"],
+    queryKey: CART_QUERY_KEY,
     queryFn: () => api.get<Cart>("/cart"),
     enabled: !!user,
   });
@@ -27,7 +28,7 @@ function CheckoutPage() {
     mutationFn: () => api.post<Order>("/checkout", { name, email }),
     onSuccess: (data) => {
       setOrder(data);
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
   });
 
