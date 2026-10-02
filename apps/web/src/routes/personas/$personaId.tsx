@@ -19,15 +19,23 @@ function PersonaDetailPage() {
     queryFn: () => api.get<Persona>(`/personas/${personaId}`),
   });
 
-  const { data: favorites = [] } = useQuery({
+  const { data: favoritesData } = useQuery({
     queryKey: ["favorites"],
-    queryFn: async () => {
-      const res = await api.get<{ favorites: Persona[] }>("/favorites");
-      return res.favorites.map((p) => p.id);
-    },
+    queryFn: () => api.get<{ favorites: Persona[] }>("/favorites"),
+    enabled: !!user,
   });
 
-  const isFavorited = favorites.includes(personaId);
+  const { data: cart } = useQuery({
+    queryKey: ["cart"],
+    queryFn: () => api.get<Cart>("/cart"),
+    enabled: !!user,
+  });
+
+  const isFavorited =
+    favoritesData?.favorites.some((p) => p.id === personaId) ?? false;
+
+  const isInCart =
+    cart?.items.some((item) => item.personaId === personaId) ?? false;
 
   const addToCart = useMutation({
     mutationFn: () =>
@@ -39,7 +47,7 @@ function PersonaDetailPage() {
 
   const toggleFavorite = useMutation({
     mutationFn: () =>
-      !isFavorited
+      isFavorited
         ? api.delete(`/favorites/${personaId}`)
         : api.post("/favorites", { personaId }),
     onSuccess: () => {
@@ -166,10 +174,14 @@ function PersonaDetailPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => addToCart.mutate()}
-                  disabled={addToCart.isPending}
+                  disabled={addToCart.isPending || isInCart}
                   className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
-                  {addToCart.isPending ? "Adding..." : "Add to Cart"}
+                  {addToCart.isPending
+                    ? "Adding..."
+                    : isInCart
+                      ? "Added to Cart"
+                      : "Add to Cart"}
                 </button>
                 <button
                   onClick={() => toggleFavorite.mutate()}
