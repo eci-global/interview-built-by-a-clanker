@@ -11,7 +11,7 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const { data: cart, isLoading } = useQuery({
@@ -23,17 +23,23 @@ function CartPage() {
   const updateQuantity = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
       api.put<Cart>(`/cart/${itemId}`, { quantity }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+    // The API returns the updated cart; writing it straight into the cache means
+    // the next click already sees the new quantity (no refetch window to race).
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["cart"], updated);
     },
   });
 
   const removeItem = useMutation({
     mutationFn: (itemId: string) => api.delete<Cart>(`/cart/${itemId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cart"] });
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["cart"], updated);
     },
   });
+
+  if (authLoading) {
+    return <div className="animate-pulse h-48 bg-gray-100 rounded-xl" />;
+  }
 
   if (!user) {
     return (
@@ -43,6 +49,7 @@ function CartPage() {
         </h2>
         <Link
           to="/login"
+          search={{ redirect: "/cart" }}
           className="text-indigo-600 hover:text-indigo-700 font-medium"
         >
           Go to sign in
@@ -94,6 +101,7 @@ function CartPage() {
                 updateQuantity.mutate({ itemId: item.id, quantity })
               }
               onRemove={() => removeItem.mutate(item.id)}
+              disabled={updateQuantity.isPending || removeItem.isPending}
             />
           ))}
         </div>

@@ -3,14 +3,17 @@ import { useState } from "react";
 import { api, ApiError } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import type { AuthResponse } from "@acme/shared";
+import { validateAuthSearch } from "~/lib/redirect";
 
 export const Route = createFileRoute("/register")({
+  validateSearch: validateAuthSearch,
   component: RegisterPage,
 });
 
 function RegisterPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +32,7 @@ function RegisterPage() {
         password,
       });
       login(response);
-      navigate({ to: "/" });
+      navigate({ href: redirect ?? "/" });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -63,6 +66,9 @@ function RegisterPage() {
               onChange={(e) => setUsername(e.target.value)}
               required
               minLength={3}
+              maxLength={30}
+              pattern="[a-zA-Z0-9_.\-]+"
+              title="Letters, numbers, '.', '_' and '-' only"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               placeholder="Your username"
             />
@@ -100,6 +106,7 @@ function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
+              maxLength={128}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               placeholder="Min 6 characters"
             />
@@ -120,6 +127,7 @@ function RegisterPage() {
           Already have an account?{" "}
           <Link
             to="/login"
+            search={{ redirect }}
             className="text-indigo-600 hover:text-indigo-700 font-medium"
           >
             Sign in

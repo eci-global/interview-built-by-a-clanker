@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { User, AuthResponse } from "@acme/shared";
 import { api, ApiError } from "./api";
+import { queryClient } from "./queryClient";
 
 interface AuthContextType {
   user: User | null;
@@ -53,6 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    localStorage.removeItem("auth_token");
+    // Drop the previous user's cached cart/favorites
+    queryClient.clear();
     setToken(null);
     setUser(null);
   }, []);

@@ -11,7 +11,7 @@ export const Route = createFileRoute("/favorites")({
 });
 
 function FavoritesPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
 
   const { data, isLoading } = useQuery({
     queryKey: ["favorites"],
@@ -27,6 +27,10 @@ function FavoritesPage() {
     },
   });
 
+  if (authLoading) {
+    return <div className="animate-pulse h-48 bg-gray-100 rounded-xl" />;
+  }
+
   if (!user) {
     return (
       <div className="text-center py-16">
@@ -35,6 +39,7 @@ function FavoritesPage() {
         </h2>
         <Link
           to="/login"
+          search={{ redirect: "/favorites" }}
           className="text-indigo-600 hover:text-indigo-700 font-medium"
         >
           Go to sign in

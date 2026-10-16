@@ -2,8 +2,8 @@ import { z } from "zod";
 import { cartItemSchema } from "./cart.js";
 
 export const checkoutSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+  name: z.string().trim().min(1, "Name is required").max(100),
+  email: z.string().trim().email("Enter a valid email address"),
 });
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>;

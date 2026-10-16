@@ -12,19 +12,20 @@ export const Route = createFileRoute("/personas/$personaId")({
 
 function PersonaDetailPage() {
   const { personaId } = Route.useParams();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
 
   const { data: persona, isLoading } = useQuery({
     queryKey: ["persona", personaId],
     queryFn: () => api.get<Persona>(`/personas/${personaId}`),
   });
 
+  // Shares the ["favorites"] cache entry with the favorites page, so the cached
+  // value must stay in the API's shape; derive the id list with `select`.
   const { data: favorites = [] } = useQuery({
     queryKey: ["favorites"],
-    queryFn: async () => {
-      const res = await api.get<{ favorites: Persona[] }>("/favorites");
-      return res.favorites.map((p) => p.id);
-    },
+    queryFn: () => api.get<{ favorites: Persona[] }>("/favorites"),
+    select: (res) => res.favorites.map((p) => p.id),
+    enabled: !!user,
   });
 
   const isFavorited = favorites.includes(personaId);
@@ -39,7 +40,7 @@ function PersonaDetailPage() {
 
   const toggleFavorite = useMutation({
     mutationFn: () =>
-      !isFavorited
+      isFavorited
         ? api.delete(`/favorites/${personaId}`)
         : api.post("/favorites", { personaId }),
     onSuccess: () => {
@@ -193,9 +194,13 @@ function PersonaDetailPage() {
               </div>
             )}
 
-            {!user && (
+            {!user && !authLoading && (
               <p className="text-gray-500 text-sm">
-                <Link to="/login" className="text-indigo-600 hover:text-indigo-700">
+                <Link
+                  to="/login"
+                  search={{ redirect: `/personas/${personaId}` }}
+                  className="text-indigo-600 hover:text-indigo-700"
+                >
                   Sign in
                 </Link>{" "}
                 to add to cart or save as favorite.

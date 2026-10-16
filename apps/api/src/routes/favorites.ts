@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { Persona } from "@acme/shared";
-import { db, favorites as favoritesStore, personas as personasStore } from "../db.js";
+import { db } from "../db.js";
 import { authenticate } from "../middleware/auth.js";
 
 export async function favoriteRoutes(app: FastifyInstance) {
@@ -8,14 +8,11 @@ export async function favoriteRoutes(app: FastifyInstance) {
 
   app.get("/favorites", async (request) => {
     const { id: userId } = request.user as { id: string };
-    const userFavs = favoritesStore.get(userId);
     const result: Persona[] = [];
 
-    if (userFavs) {
-      for (const pid of userFavs) {
-        const persona = personasStore.get(pid);
-        if (persona) result.push(persona);
-      }
+    for (const pid of db.favorites.getByUserId(userId)) {
+      const persona = db.personas.getById(pid);
+      if (persona) result.push(persona);
     }
 
     return { favorites: result };
@@ -23,9 +20,9 @@ export async function favoriteRoutes(app: FastifyInstance) {
 
   app.post("/favorites", async (request, reply) => {
     const { id: userId } = request.user as { id: string };
-    const { personaId } = request.body as { personaId: string };
+    const { personaId } = (request.body ?? {}) as { personaId?: unknown };
 
-    if (!personaId) {
+    if (typeof personaId !== "string" || !personaId) {
       return reply.status(400).send({ error: "personaId is required" });
     }
 

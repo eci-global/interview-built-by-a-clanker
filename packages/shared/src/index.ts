@@ -18,6 +18,7 @@ export {
 } from "./schemas/auth.js";
 
 export {
+  MAX_CART_QUANTITY,
   cartItemSchema,
   addToCartSchema,
   updateCartItemSchema,

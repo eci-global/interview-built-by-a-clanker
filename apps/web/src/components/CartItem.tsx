@@ -1,13 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import type { CartItem as CartItemType } from "@acme/shared";
+import { MAX_CART_QUANTITY, type CartItem as CartItemType } from "@acme/shared";
 
 interface CartItemProps {
   item: CartItemType;
   onUpdateQuantity: (quantity: number) => void;
   onRemove: () => void;
+  /** True while any cart mutation is in flight, so clicks can't race on stale quantities */
+  disabled?: boolean;
 }
 
-export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
+export function CartItem({ item, onUpdateQuantity, onRemove, disabled = false }: CartItemProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
       <Link
@@ -39,6 +41,7 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
       <div className="flex items-center gap-2">
         <button
           onClick={() => onUpdateQuantity(item.quantity - 1)}
+          disabled={disabled || item.quantity <= 1}
           className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           -
@@ -48,7 +51,8 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
         </span>
         <button
           onClick={() => onUpdateQuantity(item.quantity + 1)}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          disabled={disabled || item.quantity >= MAX_CART_QUANTITY}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           +
         </button>
@@ -60,7 +64,8 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
         </p>
         <button
           onClick={onRemove}
-          className="text-sm text-red-500 hover:text-red-700 transition-colors mt-1"
+          disabled={disabled}
+          className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors mt-1"
         >
           Remove
         </button>

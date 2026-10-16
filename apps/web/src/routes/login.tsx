@@ -3,14 +3,17 @@ import { useState } from "react";
 import { api, ApiError } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import type { AuthResponse } from "@acme/shared";
+import { validateAuthSearch } from "~/lib/redirect";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: validateAuthSearch,
   component: LoginPage,
 });
 
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,7 +30,7 @@ function LoginPage() {
         password,
       });
       login(response);
-      navigate({ to: "/" });
+      navigate({ href: redirect ?? "/" });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -98,6 +101,7 @@ function LoginPage() {
           Don't have an account?{" "}
           <Link
             to="/register"
+            search={{ redirect }}
             className="text-indigo-600 hover:text-indigo-700 font-medium"
           >
             Sign up
