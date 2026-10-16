@@ -14,6 +14,23 @@ function getToken(): string | null {
   return localStorage.getItem("auth_token");
 }
 
+// Validation errors arrive as Zod's flatten() shape: { formErrors, fieldErrors }
+function formatError(error: unknown): string | undefined {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const { formErrors = [], fieldErrors = {} } = error as {
+      formErrors?: string[];
+      fieldErrors?: Record<string, string[] | undefined>;
+    };
+    const messages = [
+      ...formErrors,
+      ...Object.values(fieldErrors).flatMap((m) => m ?? []),
+    ];
+    if (messages.length > 0) return messages.join(". ");
+  }
+  return undefined;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -37,7 +54,7 @@ async function request<T>(
     const body = await response.json().catch(() => ({}));
     throw new ApiError(
       response.status,
-      body.error ?? `Request failed: ${response.status}`,
+      formatError(body.error) ?? `Request failed: ${response.status}`,
     );
   }
 

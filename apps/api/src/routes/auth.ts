@@ -1,9 +1,8 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { registerSchema, loginSchema, type AuthResponse } from "@acme/shared";
 import { db } from "../db.js";
 import { authenticate } from "../middleware/auth.js";
-
-let userCounter = 0;
 
 function simpleHash(password: string): string {
   let hash = 0;
@@ -28,7 +27,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(409).send({ error: "Email already registered" });
     }
 
-    const id = `user-${++userCounter}`;
+    const id = `user-${randomUUID()}`;
     const user = db.users.create({
       id,
       username,
@@ -59,9 +58,9 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const token = app.jwt.sign({ id: user.id, email: user.email });
-    const response = {
+    const response: AuthResponse = {
       token,
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, username: user.username, email: user.email },
     };
 
     return response;
@@ -74,7 +73,8 @@ export async function authRoutes(app: FastifyInstance) {
       const payload = request.user as { id: string; email: string };
       const user = db.users.getById(payload.id);
       if (!user) {
-        return reply.status(404).send({ error: "User not found" });
+        // Token is valid but the user no longer exists (e.g. in-memory DB was reset)
+        return reply.status(401).send({ error: "Unauthorized" });
       }
       return { id: user.id, username: user.username, email: user.email };
     }

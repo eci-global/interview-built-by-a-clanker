@@ -11,7 +11,7 @@ export const Route = createFileRoute("/checkout")({
 });
 
 function CheckoutPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,6 +31,10 @@ function CheckoutPage() {
     },
   });
 
+  if (authLoading) {
+    return <div className="animate-pulse h-48 bg-gray-100 rounded-xl" />;
+  }
+
   if (!user) {
     return (
       <div className="text-center py-16">
@@ -39,6 +43,7 @@ function CheckoutPage() {
         </h2>
         <Link
           to="/login"
+          search={{ redirect: "/checkout" }}
           className="text-indigo-600 hover:text-indigo-700 font-medium"
         >
           Go to sign in

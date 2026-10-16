@@ -1,5 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { addToCartSchema, updateCartItemSchema, type Cart, type CartItem } from "@acme/shared";
+import {
+  MAX_CART_QUANTITY,
+  addToCartSchema,
+  updateCartItemSchema,
+  type Cart,
+  type CartItem,
+} from "@acme/shared";
 import { db } from "../db.js";
 import { authenticate } from "../middleware/auth.js";
 
@@ -47,6 +53,16 @@ export async function cartRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Persona not found" });
     }
 
+    // Adding an item already in the cart merges quantities, so cap the combined total
+    const existing = db.cart
+      .getByUserId(userId)
+      .find((item) => item.personaId === personaId);
+    if ((existing?.quantity ?? 0) + quantity > MAX_CART_QUANTITY) {
+      return reply
+        .status(400)
+        .send({ error: `Quantity cannot exceed ${MAX_CART_QUANTITY}` });
+    }
+
     db.cart.add(userId, personaId, quantity);
     return enrichCartItems(userId);
   });
@@ -75,7 +91,7 @@ export async function cartRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id: userId } = request.user as { id: string };
       const item = db.cart.getById(request.params.itemId);
-      if (!item) {
+      if (!item || item.userId !== userId) {
         return reply.status(404).send({ error: "Cart item not found" });
       }
 

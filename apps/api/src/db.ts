@@ -349,6 +349,8 @@ export const db = {
             p.name.toLowerCase().includes(query) ||
             p.tagline.toLowerCase().includes(query) ||
             p.description.toLowerCase().includes(query) ||
+            p.specialty.toLowerCase().includes(query) ||
+            p.tier.toLowerCase().includes(query) ||
             p.capabilities.some((c) => c.toLowerCase().includes(query))
         );
       }
@@ -362,7 +364,7 @@ export const db = {
       }
 
       if (filters.minPrice !== undefined) {
-        results = results.filter((p) => p.price <= filters.minPrice!);
+        results = results.filter((p) => p.price >= filters.minPrice!);
       }
 
       if (filters.maxPrice !== undefined) {

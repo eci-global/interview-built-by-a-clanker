@@ -40,7 +40,7 @@ export function SearchBar({ value, onChange }: SearchBarProps) {
         type="text"
         value={local}
         onChange={(e) => setLocal(e.target.value)}
-        placeholder="Search personas by name, capability, or description..."
+        placeholder="Search personas by name, specialty, capability, or description..."
         className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
       />
       {local && (

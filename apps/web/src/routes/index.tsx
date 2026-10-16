@@ -6,7 +6,7 @@ import { PersonaCard } from "~/components/PersonaCard";
 import { SearchBar } from "~/components/SearchBar";
 import { FilterPanel } from "~/components/FilterPanel";
 
-interface SearchParams {
+export interface SearchParams {
   q?: string;
   specialty?: string;
   tier?: string;
@@ -39,10 +39,10 @@ function BrowsePage() {
   if (search.maxPrice) queryString.set("maxPrice", String(search.maxPrice));
   if (search.sort) queryString.set("sort", search.sort);
 
-  const { data: personas = [], isLoading } = useQuery({
-    queryKey: ["personas"],
+  const qs = queryString.toString();
+  const { data: personas = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["personas", qs],
     queryFn: () => {
-      const qs = queryString.toString();
       return api.get<Persona[]>(`/personas${qs ? `?${qs}` : ""}`);
     },
   });
@@ -103,6 +103,26 @@ function BrowsePage() {
                   <div className="h-4 bg-gray-200 rounded w-1/2" />
                 </div>
               ))}
+            </div>
+          ) : isError ? (
+            <div className="text-center py-16">
+              <p className="text-red-600 text-lg">
+                Couldn't load personas: {error.message}
+              </p>
+              <div className="mt-4 flex justify-center gap-6">
+                <button
+                  onClick={() => refetch()}
+                  className="text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  Try again
+                </button>
+                <button
+                  onClick={() => navigate({ to: "/", search: {} })}
+                  className="text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  Clear filters
+                </button>
+              </div>
             </div>
           ) : personas.length === 0 ? (
             <div className="text-center py-16">
